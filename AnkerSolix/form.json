@@ -1,0 +1,394 @@
+{
+  "elements": [
+    {
+      "type": "Label",
+      "name": "Overview",
+      "caption": ""
+    },
+    {
+      "type": "ExpansionPanel",
+      "name": "PanelSetup",
+      "caption": "Einrichtung",
+      "expanded": true,
+      "items": [
+        {
+          "type": "Label",
+          "caption": "Vorher in der Anker-App einschalten: Gerät → Einstellungen → Steuerung durch Drittanbieter → Modbus TCP. Dort steht auch die IP-Adresse."
+        },
+        {
+          "type": "Label",
+          "name": "ConnState",
+          "caption": ""
+        },
+        {
+          "type": "Label",
+          "caption": "Die Verbindung läuft über ein ModBus Gateway von Symcon. IP-Adresse, Port und Geräte-ID trägst du ganz unten unter „Verbindung einstellen“ ein."
+        }
+      ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "name": "PanelControl",
+      "caption": "Steuerung",
+      "expanded": true,
+      "items": [
+        {
+          "type": "CheckBox",
+          "name": "AllowControl",
+          "caption": "Steuerung erlauben (ohne Häkchen liest das Modul nur)"
+        },
+        {
+          "type": "Label",
+          "caption": "Bedient wird über die Variablen: „Steuerung“ (Anker / Manuell) und – nur bei Manuell – „Regelung“ (Pause, Laden, Entladen, Netzregelung, Extern)."
+        },
+        {
+          "type": "CheckBox",
+          "name": "StartPaused",
+          "caption": "Beim Wechsel auf „Manuell“ mit „Pause“ beginnen"
+        },
+        {
+          "type": "CheckBox",
+          "name": "FallbackToAnker",
+          "caption": "Bleibt die Netzleistung oder die externe Vorgabe aus: zurück auf „Anker“ stellen (sonst 0 W)"
+        },
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "ExternalTimeout",
+              "caption": "Externe Vorgabe gilt höchstens (Sekunden, 0 = unbegrenzt)",
+              "minimum": 0,
+              "maximum": 86400,
+              "width": "400px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "PowerRange",
+              "caption": "Obergrenze der Schieberegler (Watt)",
+              "minimum": 100,
+              "maximum": 20000,
+              "width": "300px"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "name": "PanelGrid",
+      "caption": "Netzregelung",
+      "expanded": true,
+      "items": [
+        {
+          "type": "Label",
+          "caption": "Für die Regelung „Netzregelung“: Das Modul lädt bei Überschuss und entlädt bei Bezug, bis die Netzleistung das Ziel erreicht."
+        },
+        {
+          "type": "SelectVariable",
+          "name": "GridVariable",
+          "caption": "Variable mit der Netzleistung",
+          "width": "500px"
+        },
+        {
+          "type": "Label",
+          "name": "GridInfo",
+          "caption": ""
+        },
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "Select",
+              "name": "GridSign",
+              "caption": "Vorzeichen der Variable",
+              "width": "320px",
+              "options": [
+                {
+                  "caption": "Bezug positiv, Einspeisung negativ",
+                  "value": 0
+                },
+                {
+                  "caption": "Bezug negativ, Einspeisung positiv",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "type": "Select",
+              "name": "GridUnit",
+              "caption": "Einheit der Variable",
+              "width": "180px",
+              "options": [
+                {
+                  "caption": "Watt",
+                  "value": 0
+                },
+                {
+                  "caption": "Kilowatt",
+                  "value": 1
+                }
+              ]
+            },
+            {
+              "type": "Select",
+              "name": "RegDirection",
+              "caption": "Der Regler darf",
+              "width": "240px",
+              "options": [
+                {
+                  "caption": "laden und entladen",
+                  "value": 0
+                },
+                {
+                  "caption": "nur laden",
+                  "value": 1
+                },
+                {
+                  "caption": "nur entladen",
+                  "value": 2
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "TargetGrid",
+              "caption": "Ziel-Netzleistung (Watt, + = Bezug)",
+              "minimum": -20000,
+              "maximum": 20000,
+              "width": "280px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "Deadband",
+              "caption": "Nicht nachregeln unter (Watt)",
+              "minimum": 0,
+              "maximum": 1000,
+              "width": "240px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "RegGain",
+              "caption": "Regelstärke (Prozent)",
+              "minimum": 10,
+              "maximum": 100,
+              "width": "200px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "GridTimeout",
+              "caption": "Netzleistung zu alt nach (Sekunden, 0 = nie)",
+              "minimum": 0,
+              "maximum": 3600,
+              "width": "320px"
+            }
+          ]
+        },
+        {
+          "type": "Label",
+          "caption": "Regelstärke: 100 gleicht eine Abweichung in einem Schritt aus, kleinere Werte regeln ruhiger."
+        }
+      ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "caption": "Grenzen",
+      "expanded": false,
+      "items": [
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "MinChargePower",
+              "caption": "Mindestleistung Laden (Watt)",
+              "minimum": 0,
+              "maximum": 5000,
+              "width": "260px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "MinDischargePower",
+              "caption": "Mindestleistung Entladen (Watt)",
+              "minimum": 0,
+              "maximum": 5000,
+              "width": "260px"
+            },
+            {
+              "type": "Select",
+              "name": "BelowMinMode",
+              "caption": "Unter der Mindestleistung",
+              "width": "300px",
+              "options": [
+                {
+                  "caption": "nichts tun (0 Watt)",
+                  "value": 0
+                },
+                {
+                  "caption": "auf die Mindestleistung aufrunden",
+                  "value": 1
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "Label",
+          "caption": "Die Mindestleistung gilt bei „Netzregelung“ und „Extern“. Beim Aufrunden kann der Speicher Strom aus dem Netz laden."
+        },
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "MinSOC",
+              "caption": "Entladen nur über Ladezustand (Prozent, 0 = aus)",
+              "minimum": 0,
+              "maximum": 100,
+              "width": "360px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "MaxSOC",
+              "caption": "Laden nur unter Ladezustand (Prozent, 100 = aus)",
+              "minimum": 0,
+              "maximum": 100,
+              "width": "360px"
+            }
+          ]
+        },
+        {
+          "type": "Label",
+          "caption": "Die höchste Lade- und Entladeleistung stellst du im Betrieb über die Variablen „Max. Ladeleistung“ und „Max. Entladeleistung“ ein."
+        }
+      ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "caption": "Abfrage",
+      "expanded": false,
+      "items": [
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "NumberSpinner",
+              "name": "Interval",
+              "caption": "Abfrage und Regelung alle (Sekunden)",
+              "minimum": 2,
+              "maximum": 3600,
+              "width": "300px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "SlowInterval",
+              "caption": "Geräteinfo alle (Sekunden)",
+              "minimum": 10,
+              "maximum": 86400,
+              "width": "240px"
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "FailLimit",
+              "caption": "Fehler melden nach (Fehlversuchen)",
+              "minimum": 1,
+              "maximum": 100,
+              "width": "280px"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "ExpansionPanel",
+      "name": "PanelConn",
+      "caption": "Verbindung einstellen (IP-Adresse, Port, Geräte-ID)",
+      "expanded": true,
+      "items": [
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "ValidationTextBox",
+              "name": "ConnHost",
+              "caption": "IP-Adresse des Speichers",
+              "width": "260px",
+              "value": ""
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "ConnPort",
+              "caption": "Port",
+              "minimum": 1,
+              "maximum": 65535,
+              "width": "140px",
+              "value": 502
+            },
+            {
+              "type": "NumberSpinner",
+              "name": "ConnDevice",
+              "caption": "Geräte-ID",
+              "minimum": 1,
+              "maximum": 247,
+              "width": "140px",
+              "value": 1
+            },
+            {
+              "type": "Button",
+              "caption": "Übernehmen",
+              "onClick": "ANK_SetConnection($id, $ConnHost, $ConnPort, $ConnDevice);"
+            }
+          ]
+        },
+        {
+          "type": "Label",
+          "caption": "Port 502 und Geräte-ID 1 sind der Normalfall. Die Werte werden in den Client Socket und das ModBus Gateway dieser Instanz geschrieben."
+        },
+        {
+          "type": "Label",
+          "name": "ConnResult",
+          "caption": ""
+        }
+      ]
+    },
+    {
+      "type": "RowLayout",
+      "items": [
+        {
+          "type": "Button",
+          "caption": "Verbindung prüfen",
+          "onClick": "ANK_TestConnection($id);"
+        },
+        {
+          "type": "Button",
+          "caption": "Jetzt abfragen",
+          "onClick": "ANK_Update($id);"
+        }
+      ]
+    },
+    {
+      "type": "Label",
+      "name": "Result",
+      "caption": ""
+    }
+  ],
+  "status": [
+    {
+      "code": 104,
+      "icon": "inactive",
+      "caption": "Kein ModBus Gateway verbunden"
+    },
+    {
+      "code": 201,
+      "icon": "error",
+      "caption": "Speicher nicht erreichbar – IP-Adresse, Port und „Modbus TCP“ in der Anker-App prüfen"
+    }
+  ]
+}

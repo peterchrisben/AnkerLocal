@@ -121,16 +121,18 @@ check('Timer 5 s', Stub::$instances[$id]->__timers()['Update']['interval'], 5000
 check('Update', ANK_Update($id), true);
 check('Status 102', status($id), 102);
 check('SOC', val($id, 'SOC'), 55);
-check('PV-Leistung (eigen + fremd)', val($id, 'PVPower'), 1500);
+check('Modell erkannt', val($id, 'Model'), 'Anker SOLIX Solarbank Max AC');
+check('Max AC: PV-Leistung wird nicht angelegt', val($id, 'PVPower'), null);
+check('Max AC: PV-Ertrag wird nicht angelegt', val($id, 'PVEnergy'), null);
+check('Fremd-PV-Leistung', val($id, 'PVPowerThird'), 300);
 check('Netzleistung', val($id, 'GridPower'), -1050);
 check('Hausverbrauch', val($id, 'LoadPower'), 450);
-check('PV-Ertrag', val($id, 'PVEnergy'), 1234.5);
+check('Geladen gesamt', val($id, 'ChargeEnergy'), 234.5);
 check('Nennkapazität', val($id, 'RatedEnergy'), 7.0);
-check('Modell', val($id, 'Model'), 'Anker SOLIX Solarbank Max AC');
 check('Seriennummer', val($id, 'Serial'), 'A17DMWH1234567890');
 check('Firmware', val($id, 'Firmware'), 'v1.2.3');
 check('Entladegrenze App', val($id, 'DischargeLimitSOC'), 10);
-check('Gerätegrenze Laden', val($id, 'DeviceMaxCharge'), 3500);
+check('Ladbare Leistung (Gerät)', val($id, 'DeviceMaxCharge'), 3500);
 check('Steuerung = Anker', val($id, 'Control'), 0);
 check('Erreichbar', val($id, 'Online'), true);
 echo '       Hinweis: ' . val($id, 'ControlInfo') . "\n";
@@ -162,9 +164,10 @@ check('Max. Ladeleistung 600 greift', fakeSetpoint($port), -600);
 check('Sollleistung am Gerät', val($id, 'Setpoint'), 600);
 echo '       Hinweis: ' . val($id, 'ControlInfo') . "\n";
 IPS_RequestAction($id, 'MaxChargePower', 3500);
-fakeSetInput($port, 10037, 400);
+fakeSetInput($port, 10037, 40);
 ANK_Update($id);
-check('Gerätegrenze 400 greift', fakeSetpoint($port), -400);
+ANK_Update($id);
+check('„Ladbare Leistung“ 40 W begrenzt nicht', fakeSetpoint($port), -800);
 fakeSetInput($port, 10037, 3500);
 IPS_RequestAction($id, 'DischargePower', 500);
 IPS_RequestAction($id, 'Regulation', 2);
@@ -278,7 +281,110 @@ $form = json_decode(Stub::$instances[$id]->GetConfigurationForm(), true);
 echo '       Überblick: ' . $form['elements'][0]['caption'] . "\n";
 check('Einrichtung zugeklappt', $form['elements'][1]['expanded'], false);
 
-echo "7 Gerät nicht erreichbar\n";
+echo "7 Werte auswählen und Archiv-Schutz\n";
+$form = json_decode(Stub::$instances[$id]->GetConfigurationForm(), true);
+$panel = null;
+foreach ($form['elements'] as $e) {
+    if (($e['name'] ?? '') === 'PanelValues') {
+        $panel = $e;
+    }
+}
+echo '       ' . $panel['caption'] . "\n";
+$rows = $panel['items'][2]['values'];
+$byIdent = array_column($rows, null, 'Ident');
+check('Liste: PV-Leistung abgewählt (Max AC)', $byIdent['PVPower']['Show'], false);
+check('Liste: Ladezustand angehakt mit Wert', $byIdent['SOC']['Show'] && $byIdent['SOC']['Value'] === '55', true);
+check('Liste: keine X1-Werte', isset($byIdent['SOH']), false);
+// Benutzer hakt PV-Leistung an und Hausverbrauch ab
+$save = [];
+foreach ($rows as $row) {
+    $show = $row['Show'];
+    if ($row['Ident'] === 'PVPower') {
+        $show = true;
+    }
+    if ($row['Ident'] === 'LoadPower' || $row['Ident'] === 'GridPower') {
+        $show = false;
+    }
+    $save[] = ['Show' => $show, 'Ident' => $row['Ident']];
+}
+foreach (Stub::$objects as $oid => $o) {
+    if ($o['type'] === 'variable' && $o['parent'] === $id && $o['ident'] === 'GridPower') {
+        Stub::$objects[$oid]['logging'] = true;   // Netzleistung wird archiviert
+    }
+}
+setProps($id, ['ValueSelection' => json_encode($save)]);
+ANK_Update($id);
+check('Angehakt: PV-Leistung jetzt da', val($id, 'PVPower'), 1200);
+check('Abgewählt: Hausverbrauch entfernt', val($id, 'LoadPower'), null);
+check('Abgewählt, aber archiviert: Netzleistung bleibt', val($id, 'GridPower'), -1050);
+$form = json_decode(Stub::$instances[$id]->GetConfigurationForm(), true);
+foreach ($form['elements'] as $e) {
+    if (($e['name'] ?? '') === 'PanelValues') {
+        $byIdent = array_column($e['items'][2]['values'], null, 'Ident');
+    }
+}
+check('Liste zeigt Archiv-Hinweis', $byIdent['GridPower']['Archive'], 'archiviert – bleibt erhalten');
+ANK_SelectAllValues($id, true);
+$all = json_decode(Stub::$instances[$id]->__formFields()['ValueSelection']['values'], true);
+check('Alle anhaken', count(array_filter($all, fn($r) => $r['Show'])), count($all));
+$sum = json_decode(ANK_GetSummary($id), true);
+check('GetSummary mit abgewählter Variable', array_key_exists('LoadPower', $sum) && $sum['LoadPower'] === null, true);
+
+echo "8 X1-Serie\n";
+FakeAnker::Reset('x1');
+[$gwX, $ioX] = Stub_CreateGatewayChain();
+$x = Stub::CreateInstance($class, [], $gwX);
+ANK_SetConnection($x, '192.168.1.60', 502, 1);
+check('Update', ANK_Update($x), true);
+check('Modell', val($x, 'Model'), 'Anker SOLIX X1-H12K-T');
+check('Seriennummer (niederwertiges Byte zuerst)', val($x, 'Serial'), 'APC123456789012');
+check('Firmware', val($x, 'Firmware'), '1.0.19.16');
+check('Netzleistung (niederwertiges Wort zuerst)', val($x, 'GridPower'), -1050);
+check('PV-Leistung vorhanden', val($x, 'PVPower'), 1200);
+check('PV-Ertrag ×0,01 kWh', val($x, 'PVEnergy'), 1234.5);
+check('Geladen gesamt', val($x, 'ChargeEnergy'), 234.5);
+check('Netzbezug-Zähler', val($x, 'GridImportEnergy'), 3000.0);
+check('Akku-Gesundheit', val($x, 'SOH'), 98);
+check('Anlagenstatus', val($x, 'PlantStatus'), 1);
+check('AC-Ausgangsleistung aus 10006', val($x, 'ACOutputPower'), -800);
+check('Innentemperatur negativ', val($x, 'InternalTemp'), -5.0);
+check('Akkumodule', val($x, 'Packs'), 2);
+check('Nennleistung', val($x, 'RatedPower'), 6000);
+check('Geräte-Wächter', val($x, 'DeviceWatchdog'), 1800);
+check('Keine Solarbank-Werte (Nennkapazität)', val($x, 'RatedEnergy'), null);
+check('Keine Solarbank-Werte (Notstrom-Reserve)', val($x, 'BackupReserveSOC'), null);
+check('Betriebsart 20 angezeigt', val($x, 'DeviceMode'), 20);
+echo '       Hinweis: ' . val($x, 'ControlInfo') . "\n";
+setProps($x, ['AllowControl' => true, 'PowerRange' => 8000, 'X1Watchdog' => 600]);
+IPS_RequestAction($x, 'MaxChargePower', 8000);
+IPS_RequestAction($x, 'MaxDischargePower', 8000);
+ANK_SetControl($x, 1);
+check('Betriebsart 3', FakeAnker::$holding[10064], 3);
+check('Geräte-Wächter auf 600 s gestellt', FakeAnker::$holding[10080], 600);
+IPS_RequestAction($x, 'Regulation', 1);
+IPS_RequestAction($x, 'ChargePower', 2500);
+check('Laden 2500 W: Wortfolge der X1 (niedrig, hoch)', [FakeAnker::$holding[10071], FakeAnker::$holding[10072]], [0xF63C, 0xFFFF]);
+check('… als Zahl −2500', FakeAnker::Setpoint(), -2500);
+IPS_RequestAction($x, 'ChargePower', 8000);
+check('Laden begrenzt auf Nennleistung 6000 W', FakeAnker::Setpoint(), -6000);
+IPS_RequestAction($x, 'DischargePower', 8000);
+IPS_RequestAction($x, 'Regulation', 2);
+check('Entladen begrenzt auf 6600 W', FakeAnker::Setpoint(), 6600);
+expectException('Betriebsart 6 gibt es bei der X1 nicht', fn() => ANK_SetAnkerMode($x, 6));
+ANK_SetAnkerMode($x, 2);
+ANK_SetControl($x, 0);
+check('Zurück zu Anker: Nur Notstrom', FakeAnker::$holding[10064], 2);
+$form = json_decode(Stub::$instances[$x]->GetConfigurationForm(), true);
+echo '       Überblick: ' . $form['elements'][0]['caption'] . "\n";
+echo '       ' . $form['elements'][1]['items'][3]['items'][1]['caption'] . "\n";
+setProps($x, ['DeviceFamily' => 1]);
+check('Familie fest auf Solarbank: X1-Werte weg', val($x, 'SOH'), null);
+setProps($x, ['DeviceFamily' => 0]);
+ANK_Update($x);
+check('Zurück auf automatisch: X1 wieder erkannt', val($x, 'SOH'), 98);
+FakeAnker::Reset('sb');
+
+echo "9 Gerät nicht erreichbar\n";
 FakeAnker::$silent = true;
 ANK_Update($id);
 check('1. Fehlversuch: Status bleibt', status($id), 102);

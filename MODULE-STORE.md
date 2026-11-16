@@ -22,7 +22,8 @@ ANKERlocal ist so gebaut, dass es ohne Umbau eingereicht werden kann. Eingereich
 | Instanz lässt sich immer anlegen | erfüllt – ohne Gateway bzw. ohne IP-Adresse Status „inaktiv“ und Hinweis in der Überblickszeile |
 | Nur eigene oder zugewiesene Objekte | erfüllt – die Netzleistungs-Variable wird nur gelesen und als Referenz angemeldet |
 | Keine Ereignisse | erfüllt, nur `RegisterTimer` |
-| Keine eigenen Profile, keine Custom-Darstellungen, keine Archivierung | erfüllt – nur Darstellungen über `RegisterVariable*` |
+| Keine eigenen Profile, keine Custom-Darstellungen, keine Archivierung | erfüllt – nur Darstellungen über `RegisterVariable*` / `MaintainVariable`; das Archiv wird nur gelesen (`AC_GetLoggingStatus`), damit archivierte Variablen beim Abwählen nicht gelöscht werden |
+| Werte-Auswahl | Liste mit `loadValuesFromConfiguration: false`, Zeilen aus dem Katalog des Moduls, gespeicherte Auswahl per Ident darübergelegt – kein `IPS_SetProperty` |
 | Lokaler Dateizugriff | nur `form.json` aus dem eigenen Modulordner |
 | Datenfluss | nur über `SendDataToParent` / `ReceiveData` zum ModBus Gateway von Symcon |
 | Name ohne „Symcon“/„IPS“ | erfüllt |

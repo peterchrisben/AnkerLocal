@@ -2,7 +2,7 @@
 
 Bindet Anker-SOLIX-Speicher **rein lokal** in Symcon ein – über Modbus TCP (ModBus Gateway von Symcon) im eigenen Netz, ohne Cloud und ohne Anker-Konto. Das Modul liest die Werte des Speichers und kann ihn auf Wunsch steuern: von Hand laden oder entladen, über einen eingebauten Regler auf eine Ziel-Netzleistung führen (Überschussladen / Nulleinspeisung) oder die Leistung von einem eigenen Energiemanager vorgeben lassen.
 
-**Aktuelle Version:** 1.0 Build 1 (15.11.2026) – erste Fassung, **noch nicht an einem echten Gerät getestet** (siehe [TODO.md](TODO.md)).
+**Aktuelle Version:** 1.0 Build 2 (16.11.2026) – **noch nicht an einem echten Gerät getestet** (siehe [TODO.md](TODO.md)).
 
 ## Inhalt
 
@@ -26,16 +26,21 @@ Bindet Anker-SOLIX-Speicher **rein lokal** in Symcon ein – über Modbus TCP (M
 | Anker SOLIX Solarbank Max | gleiche Registerkarte, ungetestet |
 | Anker SOLIX XE AC / XE | gleiche Registerkarte, ungetestet |
 | Anker SOLIX Solarbank 4 E5000 Pro | gleiche Registerkarte, ungetestet |
+| Anker SOLIX X1-Serie (X1-H3.68K-S … X1-H12K-T) | eigene Registerkarte nach dem Anker-Protokoll V1.0.0, ungetestet |
 
-Diese Speicher haben laut der offiziellen Home-Assistant-Integration von Anker dieselben Register. Das Modell wird aus der Seriennummer erkannt und angezeigt.
+Die Solarbank- und XE-Speicher haben laut der offiziellen Home-Assistant-Integration von Anker dieselben Register. Die X1 ist ähnlich aufgebaut, kodiert die Werte aber anders und liefert mehr.
 
-**Nicht unterstützt:** ältere Solarbank-Generationen (Solarbank 2 / 3 – sie haben kein lokales Modbus), Smart Meter Gen 2 und Smart Plug (eigene Register, noch nicht umgesetzt), X1 und V1-Wallbox.
+Das Modul erkennt das Gerät bei der ersten Abfrage selbst (X1 am Modellnamen, die anderen an der Seriennummer) und legt nur die Variablen an, die es bei diesem Gerät gibt. Bei Speichern ohne eigene PV-Eingänge (Solarbank Max AC, XE AC) sind „PV-Leistung“ und „PV-Ertrag gesamt“ von vornherein abgewählt. Klappt die Erkennung nicht, lässt sich die Gerätefamilie unter **Einrichtung** fest einstellen.
+
+**Nicht unterstützt:** ältere Solarbank-Generationen (Solarbank 2 / 3 – sie haben kein lokales Modbus), Smart Meter Gen 2 und Smart Plug (eigene Register, noch nicht umgesetzt), V1-Wallbox, mehrere X1 im Verbund.
 
 ## 2 Voraussetzungen
 
 - Symcon ab Version 8.0
 - Speicher und Symcon im selben Netz, Port 502 nicht gesperrt
-- In der **Anker-App** eingeschaltet: Gerät → Einstellungen → Steuerung durch Drittanbieter (Three-Party Control Settings) → **Modbus TCP**. Dort steht auch die IP-Adresse des Speichers.
+- Solarbank / XE: in der **Anker-App** eingeschaltet: Gerät → Einstellungen → Steuerung durch Drittanbieter (Three-Party Control Settings) → **Modbus TCP**. Dort steht auch die IP-Adresse des Speichers.
+- X1: Modbus TCP wird in der **Anker SOLIX Professional App** (Installateur-App) eingeschaltet.
+- Die X1 nimmt nur **eine** Modbus-Verbindung gleichzeitig an – also nicht zusätzlich Home Assistant, evcc oder Loxone darauf zugreifen lassen.
 - Die IP-Adresse am besten im Router fest vergeben.
 
 Ist der Punkt in der App ausgegraut: Der Speicher ist offline, Teil einer Power Station oder die Firmware ist zu alt.
@@ -64,7 +69,7 @@ Bedient wird in zwei Stufen, beides sind Variablen unter der Instanz.
 
 | Wert | Bedeutung |
 |---|---|
-| **Anker** | Der Speicher regelt selbst, in der gewählten **Anker-Betriebsart** (Eigenverbrauch, Zeitplan, Benutzerdefiniert, Smart, Dynamische Preise). Das Modul liest nur. |
+| **Anker** | Der Speicher regelt selbst, in der gewählten **Anker-Betriebsart** (Solarbank / XE: Eigenverbrauch, Zeitplan, Benutzerdefiniert, Smart, Dynamische Preise; X1: Eigenverbrauch, Zeitplan, Nur Notstrom, Benutzerdefiniert). Das Modul liest nur. |
 | **Manuell** | Der Speicher wird auf „Fremdsteuerung“ gestellt und macht nur noch, was das Modul vorgibt. |
 
 ### Stufe 2 – „Regelung“: Wie wird bei „Manuell“ geregelt?
@@ -101,7 +106,9 @@ Der Regler arbeitet im Takt der Abfrage (Standard alle 5 Sekunden) und reagiert 
 
 ## 6 Grenzen und Sicherheit
 
-**Höchstleistung:** Die Variablen **Max. Ladeleistung** und **Max. Entladeleistung** sind die oberste Grenze. Sie gelten bei „Manuell“ immer – bei Laden, Entladen, Netzregelung und Extern. Steht Max. Ladeleistung auf 600 Watt und es werden 800 Watt verlangt, gehen 600 Watt an den Speicher. Zusätzlich gilt die Grenze, die in der Anker-App eingestellt ist (Variablen „Gerätegrenze Laden/Entladen“); es zählt der kleinere Wert. Bei Steuerung „Anker“ wirken die Variablen nicht.
+**Höchstleistung:** Die Variablen **Max. Ladeleistung** und **Max. Entladeleistung** sind die oberste Grenze. Sie gelten bei „Manuell“ immer – bei Laden, Entladen, Netzregelung und Extern. Steht Max. Ladeleistung auf 600 Watt und es werden 800 Watt verlangt, gehen 600 Watt an den Speicher. Bei der X1 gilt zusätzlich die Nennleistung des Geräts (Laden) bzw. seine höchste Wirkleistung (Entladen); es zählt der kleinere Wert. Bei Steuerung „Anker“ wirken die Variablen nicht.
+
+Die Werte „Ladbare / Entladbare Leistung (Gerät)“ zeigt das Modul nur an und benutzt sie nicht als Grenze: An einer X1 wurde beobachtet, dass sie bei Fremdsteuerung der laufenden Vorgabe folgen (40 Watt im Stillstand) – als Grenze würden sie jede neue Vorgabe abwürgen. Der Speicher begrenzt ohnehin selbst.
 
 **Mindestleistung:** Unter etwa 100 Watt regelt der Speicher ungenau. Im Formular unter **Grenzen** steht je eine Mindestleistung für Laden und Entladen (Standard 100 Watt). Liegt die berechnete Leistung darunter, gibt es zwei Möglichkeiten:
 
@@ -118,49 +125,67 @@ Das gilt für Netzregelung und Extern. Bei Laden und Entladen von Hand beginnen 
 
 ## 7 Variablen
 
-| Variable | Bedeutung | schaltbar |
-|---|---|---|
-| Steuerung | Anker / Manuell | ja |
-| Regelung | Pause / Laden / Entladen / Netzregelung / Extern | ja |
-| Ladeleistung | Leistung für „Laden“ (Watt) | ja |
-| Entladeleistung | Leistung für „Entladen“ (Watt) | ja |
-| Externe Vorgabe | Leistung für „Extern“ (plus = Laden, minus = Entladen) | ja |
-| Max. Ladeleistung | oberste Grenze fürs Laden | ja |
-| Max. Entladeleistung | oberste Grenze fürs Entladen | ja |
-| Anker-Betriebsart | Betriebsart, die bei „Anker“ gilt | ja |
-| Sollleistung am Gerät | was gerade vorgegeben wird (plus = Laden) | nein |
-| Regelung – Hinweis | Erklärung in einem Satz | nein |
-| Status | Bereit / Lädt / Entlädt / Ruhezustand | nein |
-| Ladezustand | Prozent | nein |
-| Batterieleistung | plus = Laden, minus = Entladen | nein |
-| PV-Leistung | eigene PV-Eingänge plus Fremd-PV | nein |
-| Netzleistung (Gerät) | wie der Speicher sie sieht, plus = Bezug | nein |
-| Hausverbrauch (Gerät) | wie der Speicher ihn sieht | nein |
-| AC-Ausgangsleistung | Abgabe des Speichers auf der Netzseite | nein |
-| Betriebsart am Gerät | Betriebsart, die der Speicher meldet | nein |
-| PV-Ertrag / Geladen / Entladen gesamt | Zähler in kWh | nein |
-| Nennkapazität | kWh | nein |
-| Gerätegrenze Laden / Entladen | Höchstleistung laut Anker-App | nein |
-| Ladegrenze / Entladegrenze / Notstrom-Reserve (App) | Prozentwerte aus der Anker-App | nein |
-| Modell, Seriennummer, Firmware, Erreichbar | Geräteinfo | nein |
+Die Bedien-Variablen (bis „Regelung – Hinweis“) und „Erreichbar“ gibt es immer. Alle Messwerte darunter lassen sich im Formular unter **Werte auswählen** einzeln an- und abwählen: ohne Häkchen wird die Variable nicht angelegt bzw. entfernt. Variablen, die im Archiv aufgezeichnet werden, bleiben erhalten, bis die Archivierung ausgeschaltet ist. Welche Werte angeboten werden, hängt vom Gerät ab (Spalte „Gerät“: S = Solarbank / XE, X = X1).
 
-„Schaltbar“ sind die Variablen nur mit dem Häkchen „Steuerung erlauben“. Die Werte „Netzleistung (Gerät)“ und „Hausverbrauch (Gerät)“ stimmen nur, wenn der Speicher einen eigenen Zähler hat.
+| Variable | Bedeutung | Gerät |
+|---|---|---|
+| Steuerung | Anker / Manuell (schaltbar) | S X |
+| Regelung | Pause / Laden / Entladen / Netzregelung / Extern (schaltbar) | S X |
+| Ladeleistung | Leistung für „Laden“ in Watt (schaltbar) | S X |
+| Entladeleistung | Leistung für „Entladen“ in Watt (schaltbar) | S X |
+| Externe Vorgabe | Leistung für „Extern“, plus = Laden, minus = Entladen (schaltbar) | S X |
+| Max. Ladeleistung | oberste Grenze fürs Laden (schaltbar) | S X |
+| Max. Entladeleistung | oberste Grenze fürs Entladen (schaltbar) | S X |
+| Anker-Betriebsart | Betriebsart, die bei „Anker“ gilt (schaltbar) | S X |
+| Sollleistung am Gerät | was gerade vorgegeben wird (plus = Laden) | S X |
+| Regelung – Hinweis | Erklärung in einem Satz | S X |
+| Erreichbar | Ja / Nein | S X |
+| Status | Bereit / Lädt / Entlädt / Ruhezustand | S X |
+| Anlagenstatus | Am Netz / Inselbetrieb / Bereit / Störung | X |
+| Ladezustand | Prozent | S X |
+| Akku-Gesundheit | Prozent | X |
+| Batterieleistung | plus = Laden, minus = Entladen | S X |
+| PV-Leistung | eigene PV-Eingänge (bei Max AC / XE AC abgewählt) | S X |
+| Fremd-PV-Leistung | PV, die der Speicher über einen Zähler mitmisst | S X |
+| Netzleistung (Gerät) | wie der Speicher sie sieht, plus = Bezug | S X |
+| Hausverbrauch (Gerät) | wie der Speicher ihn sieht | S X |
+| AC-Ausgangsleistung | Abgabe des Speichers auf der Wechselstromseite | S X |
+| Betriebsart am Gerät | Betriebsart, die der Speicher meldet | S X |
+| Innentemperatur | Grad Celsius | X |
+| Batteriespannung | Volt (Standard: abgewählt) | X |
+| PV-Ertrag gesamt | kWh (bei Max AC / XE AC abgewählt) | S X |
+| Geladen gesamt / Entladen gesamt | kWh | S X |
+| Hausverbrauch gesamt | kWh | X |
+| Netzbezug / Einspeisung (Zähler Gerät) | kWh – je nach Firmware Tages- oder Gesamtzähler | X |
+| Nennkapazität | kWh | S |
+| Anzahl Akkumodule | Stück | X |
+| Ladbare / Entladbare Leistung (Gerät) | was der Speicher gerade aufnehmen bzw. abgeben könnte | S X |
+| Nennleistung / Max. Wirkleistung | Watt laut Typenschild | X |
+| Ladegrenze / Entladegrenze / Notstrom-Reserve (App) | Prozentwerte aus der Anker-App | S |
+| Notstrom-Reserve aktiv | Ja / Nein | S |
+| Geräte-Wächter | Sekunden ohne Modbus-Verkehr, bis die X1 von selbst auf Eigenverbrauch zurückfällt | X |
+| Modell, Seriennummer, Firmware | Geräteinfo | S X |
+
+„Schaltbar“ sind die Variablen nur mit dem Häkchen „Steuerung erlauben“. Die Werte „Netzleistung (Gerät)“ und „Hausverbrauch (Gerät)“ stimmen nur, wenn der Speicher einen eigenen Zähler hat – sonst einfach abwählen.
 
 ## 8 Einstellungen im Formular
 
 | Bereich | Einstellung | Standard |
 |---|---|---|
 | Verbindung einstellen (unten) | IP-Adresse, Port, Geräte-ID – stehen im Client Socket bzw. ModBus Gateway | –, 502, 1 |
+| Einrichtung | Gerätefamilie | automatisch erkennen |
 | Steuerung | Steuerung erlauben | aus |
 | | Beim Wechsel auf „Manuell“ mit „Pause“ beginnen | an |
 | | Bei ausbleibender Netzleistung / Vorgabe zurück auf „Anker“ | aus (= 0 Watt) |
 | | Externe Vorgabe gilt höchstens (Sekunden) | 60 |
 | | Obergrenze der Schieberegler (Watt) | 3500 |
+| | Nur X1 – Wächter im Gerät (Sekunden) | 0 (= nicht ändern, Werkswert 1800) |
 | Netzregelung | Variable, Vorzeichen, Einheit, Richtung | –, Bezug positiv, Watt, beide |
 | | Ziel-Netzleistung, Nicht nachregeln unter, Regelstärke, zu alt nach | 0 W, 20 W, 70 %, 120 s |
 | Grenzen | Mindestleistung Laden / Entladen | 100 W / 100 W |
 | | Unter der Mindestleistung | nichts tun |
 | | Entladen nur über / Laden nur unter Ladezustand | 0 % / 100 % (= aus) |
+| Werte auswählen | je Messwert ein Häkchen, „Alle anhaken“ / „Alle Häkchen entfernen“ | je nach Gerät |
 | Abfrage | Abfrage und Regelung, Geräteinfo, Fehler melden nach | 5 s, 60 s, 3 Versuchen |
 
 ## 9 Funktionen für Skripte
@@ -177,8 +202,9 @@ Alle Schreibfunktionen verlangen das Häkchen „Steuerung erlauben“.
 | `ANK_SetMaxChargePower(int $id, int $Watt): bool` | oberste Grenze Laden |
 | `ANK_SetMaxDischargePower(int $id, int $Watt): bool` | oberste Grenze Entladen |
 | `ANK_SetPower(int $id, int $Watt): bool` | externe Vorgabe: plus = Laden, minus = Entladen, 0 = nichts. Liefert `true`, wenn sie gerade wirkt (Manuell + Extern) |
-| `ANK_SetAnkerMode(int $id, int $Mode): bool` | 0 Eigenverbrauch, 1 Zeitplan, 4 Benutzerdefiniert, 6 Smart, 7 Dynamische Preise |
-| `ANK_GetSummary(int $id): string` | wichtige Werte als JSON |
+| `ANK_SetAnkerMode(int $id, int $Mode): bool` | Solarbank / XE: 0 Eigenverbrauch, 1 Zeitplan, 4 Benutzerdefiniert, 6 Smart, 7 Dynamische Preise. X1: 0 Eigenverbrauch, 1 Zeitplan, 2 Nur Notstrom, 4 Benutzerdefiniert |
+| `ANK_GetSummary(int $id): string` | wichtige Werte als JSON (abgewählte Werte sind `null`) |
+| `ANK_SelectAllValues(int $id, bool $Show): bool` | Formular-Knöpfe „Alle anhaken“ / „Alle Häkchen entfernen“ |
 | `ANK_TestConnection(int $id): bool` | Verbindung prüfen (Formular-Knopf) |
 | `ANK_SetConnection(int $id, string $Host, int $Port, int $DeviceID): bool` | IP-Adresse und Port in den Client Socket, Geräte-ID ins Gateway schreiben (Formular-Knopf „Übernehmen“) |
 | `ANK_ReadRegisters(int $id, int $Type, int $Address, int $Quantity): string` | für Fachleute: Register roh lesen (Typ 3 = Holding, 4 = Input) |
@@ -187,7 +213,11 @@ Alle Schreibfunktionen verlangen das Häkchen „Steuerung erlauben“.
 
 ## 10 Was man wissen sollte
 
-- **Symcon fällt aus:** Der Speicher hat bei Fremdsteuerung keinen eigenen Wächter. Er behält die letzte Vorgabe, bis wieder jemand etwas schreibt. Der Wächter des Moduls hilft nur, solange Symcon läuft.
+- **Symcon fällt aus (Solarbank / XE):** Diese Speicher haben bei Fremdsteuerung keinen eigenen Wächter. Sie behalten die letzte Vorgabe, bis wieder jemand etwas schreibt. Der Wächter des Moduls hilft nur, solange Symcon läuft.
+- **Symcon fällt aus (X1):** Die X1 hat einen eigenen Wächter. Kommt so viele Sekunden lang keine Abfrage mehr (Werkswert 1800, also 30 Minuten), fällt sie von selbst auf Eigenverbrauch zurück. Den Wert zeigt die Variable „Geräte-Wächter“; unter **Steuerung** lässt er sich auf 30 bis 3600 Sekunden einstellen.
+- **X1 und die App-Betriebsarten:** Nach einer Fremdsteuerung meldet die X1 teils die Betriebsarten 16 („Dynamische Preise“) oder 20 („Von der App geführt“). Einen Zeitplan der App (z. B. dynamische Preise) bekommt man nach den Erfahrungen anderer nur in der App selbst wieder aktiv – per Modbus landet die X1 praktisch im Eigenverbrauch.
+- **X1-Zähler:** Die Zähler der X1 zählen laut echtem Gerät in 0,01 kWh (das Anker-Dokument nennt 0,1). Weichen die kWh-Werte um den Faktor 10 von der App ab, bitte melden.
+- **X1 ohne angeschlossene PV:** Manche Firmware zeigt dann Fantasiewerte in den PV-Registern. In dem Fall „PV-Leistung“ und „PV-Ertrag gesamt“ einfach abwählen.
 - **Notstrom-Reserve:** Liegt der Ladezustand unter der in der App eingestellten Reserve, lädt der Speicher von sich aus mit voller Leistung aus dem Netz und übergeht die Fremdsteuerung. Über der Reserve kann sie das Entladen sperren. Wer voll selbst steuern will, schaltet Reserve, Schnellladen und Storm Guard in der App aus.
 - **0 Watt sperrt beide Richtungen:** Bei „Pause“ lädt der Speicher auch keinen PV-Überschuss.
 - **Nur ein Regler:** Nicht gleichzeitig mit Home Assistant, evcc oder Loxone auf denselben Speicher schreiben.
@@ -197,9 +227,12 @@ Alle Schreibfunktionen verlangen das Häkchen „Steuerung erlauben“.
 ## 11 Technik und Quellen
 
 - Modbus TCP über das ModBus Gateway von Symcon (das Gateway hält die Verbindung), Geräte-ID 1, Werte Big-Endian. Lesen mit Funktion 3/4, Schreiben mit Funktion 6 (Betriebsart) und 16 (Leistungsvorgabe).
-- Betriebsart: Holding-Register 10064 (3 = Fremdsteuerung). Leistungsvorgabe: Holding-Register 10071, 32 Bit mit Vorzeichen, **am Gerät** negativ = Laden, positiv = Entladen. Das Modul dreht das Vorzeichen um (plus = Laden).
-- Die Registerkarte steht in `libs/ANKRegisters.php`.
-- Quellen: die offizielle Home-Assistant-Integration [anker-charging/ha-anker-solix-official](https://github.com/anker-charging/ha-anker-solix-official) (MIT-Lizenz, Stand 29.10.2026) und das evcc-Template `anker-solix-solarbank-max-ac`. Von dort stammen nur die Registeradressen und Wertebedeutungen, kein Programmcode.
+- Betriebsart: Holding-Register 10064 (3 = Fremdsteuerung). Leistungsvorgabe: Holding-Register 10071, 32 Bit mit Vorzeichen, **am Gerät** negativ = Laden, positiv = Entladen. Das Modul dreht das Vorzeichen um (plus = Laden). Das gilt für beide Gerätefamilien.
+- Unterschied in der Kodierung: Solarbank / XE schicken bei 32-Bit-Werten das höherwertige Wort zuerst, die X1 das niederwertige (auch bei Texten ist die Byte-Reihenfolge vertauscht). Das Modul richtet sich nach der erkannten Familie.
+- Die Registerkarten stehen in `libs/ANKRegisters.php`.
+- Quellen Solarbank / XE: die offizielle Home-Assistant-Integration [anker-charging/ha-anker-solix-official](https://github.com/anker-charging/ha-anker-solix-official) (MIT-Lizenz, Stand 29.10.2026) und das evcc-Template `anker-solix-solarbank-max-ac`.
+- Quellen X1: „Anker SOLIX X1 Series Modbus Protocol“ V1.0.0 vom 07.08.2025 (Anker) und das Community-Projekt [afewyards/anker-x1-ha](https://github.com/afewyards/anker-x1-ha) (Stand 05.11.2026, an einer X1-H12K-T getestet) – von dort stammen die Abweichungen des echten Geräts vom Dokument.
+- Aus den Quellen stammen nur Registeradressen, Wertebedeutungen und Erfahrungen, kein Programmcode.
 - Tests ohne Gerät: `php tests/sim.php` (Speicher und Gateway sind in `tests/fake_anker.php` nachgebaut).
 
 ## Lizenz

@@ -88,7 +88,17 @@ class AnkerSolix extends IPSModule
         $this->RegisterPropertyInteger('MinSOC', 0);
         $this->RegisterPropertyInteger('MaxSOC', 100);
 
+        // Gerät und Werte
+        $this->RegisterPropertyInteger('DeviceFamily', 0);  // 0 = automatisch, 1 = Solarbank / XE, 2 = X1
+        $this->RegisterPropertyString('ValueSelection', '[]');
+        $this->RegisterPropertyInteger('X1Watchdog', 0);    // Sekunden, 0 = Einstellung des Geräts nicht ändern
+
         $this->RegisterAttributeInteger('AnkerMode', 0);
+        $this->RegisterAttributeString('Family', '');       // erkannte Gerätefamilie ('' = noch unbekannt)
+        $this->RegisterAttributeBoolean('FamilyForced', false);
+        $this->RegisterAttributeInteger('HasPV', -1);       // eigene PV-Eingänge: -1 unbekannt, 0 nein, 1 ja
+        $this->RegisterAttributeInteger('LimitCharge', 0);  // Höchstleistung laut Typenschild (nur X1), 0 = unbekannt
+        $this->RegisterAttributeInteger('LimitDischarge', 0);
 
         $this->RegisterTimer('Update', 0, 'ANK_Update($_IPS[\'TARGET\']);');
     }
@@ -100,6 +110,23 @@ class AnkerSolix extends IPSModule
         $this->RegisterMessage(0, IPS_KERNELSTARTED);
         if (IPS_GetKernelRunlevel() !== KR_READY) {
             return;
+        }
+
+        // Fest eingestellte Gerätefamilie sofort übernehmen
+        $forced = [1 => ANKRegisters::FAMILY_SB, 2 => ANKRegisters::FAMILY_X1][$this->ReadPropertyInteger('DeviceFamily')] ?? '';
+        if ($forced !== '') {
+            if ($this->ReadAttributeString('Family') !== $forced) {
+                $this->WriteAttributeString('Family', $forced);
+                $this->WriteAttributeInteger('HasPV', -1);
+                $this->SetBuffer('LastModel', '');
+            }
+            $this->WriteAttributeBoolean('FamilyForced', true);
+        } elseif ($this->ReadAttributeBoolean('FamilyForced')) {
+            // zurück auf „automatisch“: neu erkennen lassen
+            $this->WriteAttributeBoolean('FamilyForced', false);
+            $this->WriteAttributeString('Family', '');
+            $this->WriteAttributeInteger('HasPV', -1);
+            $this->SetBuffer('LastModel', '');
         }
 
         $this->MaintainVariables();
@@ -270,8 +297,8 @@ class AnkerSolix extends IPSModule
     public function SetAnkerMode(int $Mode): bool
     {
         $this->RequireControl();
-        if (!isset(ANKRegisters::ANKER_MODES[$Mode])) {
-            throw new Exception('Ungültige Anker-Betriebsart: ' . $Mode);
+        if (!isset($this->Profile()['ankerModes'][$Mode])) {
+            throw new Exception('Ungültige Anker-Betriebsart für dieses Gerät: ' . $Mode);
         }
         $this->WriteAttributeInteger('AnkerMode', $Mode);
         $this->SetVal('AnkerMode', $Mode);
@@ -287,12 +314,13 @@ class AnkerSolix extends IPSModule
     public function GetSummary(): string
     {
         $keys = ['Online', 'Control', 'Regulation', 'Setpoint', 'ExternalSetpoint', 'ChargePower', 'DischargePower',
-            'MaxChargePower', 'MaxDischargePower', 'SOC', 'BatteryPower', 'PVPower', 'GridPower', 'LoadPower',
-            'ACOutputPower', 'Status', 'DeviceMode', 'DeviceMaxCharge', 'DeviceMaxDischarge', 'RatedEnergy'];
+            'MaxChargePower', 'MaxDischargePower', 'SOC', 'BatteryPower', 'PVPower', 'PVPowerThird', 'GridPower', 'LoadPower',
+            'ACOutputPower', 'Status', 'DeviceMode', 'Model'];
         $summary = [];
         foreach ($keys as $key) {
-            $summary[$key] = $this->GetValue($key);
+            $summary[$key] = $this->Val($key);   // null = Variable ist abgewählt
         }
+        $summary['Family'] = $this->ReadAttributeString('Family');
         $summary['AllowControl'] = $this->ReadPropertyBoolean('AllowControl');
         $summary['ControlText'] = self::CONTROL_TEXT[$summary['Control']] ?? '';
         $summary['RegulationText'] = self::REG_TEXT[$summary['Regulation']] ?? '';
@@ -308,8 +336,8 @@ class AnkerSolix extends IPSModule
         }
         $ok = $this->Run(null);
         if ($ok) {
-            $text = 'Verbindung in Ordnung – ' . ($this->GetValue('Model') ?: 'Gerät') . ', Akku ' . $this->GetValue('SOC') . ' %, Betriebsart „'
-                . (ANKRegisters::MODES[$this->GetValue('DeviceMode')] ?? $this->GetValue('DeviceMode')) . '“.';
+            $text = 'Verbindung in Ordnung – ' . $this->DeviceLabel() . ', Akku ' . $this->GetBuffer('LastSOC') . ' %, Betriebsart „'
+                . $this->ModeText((int) $this->GetBuffer('LastMode')) . '“.';
         } else {
             $text = 'Keine Antwort: ' . $this->GetBuffer('LastError');
         }
@@ -334,6 +362,18 @@ class AnkerSolix extends IPSModule
         } finally {
             IPS_SemaphoreLeave($this->SemaphoreKey());
         }
+    }
+
+    /** Formular-Knöpfe „Alle anhaken“ / „Alle Häkchen entfernen“ – wirksam erst nach „Änderungen übernehmen“. */
+    public function SelectAllValues(bool $Show): bool
+    {
+        $rows = $this->SelectionRows();
+        foreach ($rows as &$row) {
+            $row['Show'] = $Show;
+        }
+        unset($row);
+        $this->UpdateFormField('ValueSelection', 'values', json_encode($rows));
+        return true;
     }
 
     /**
@@ -395,6 +435,11 @@ class AnkerSolix extends IPSModule
             'ConnHost'     => ['value' => $info['host']],
             'ConnPort'     => ['value' => $info['port'] > 0 ? $info['port'] : 502],
             'ConnDevice'   => ['value' => $info['device'] >= 1 ? $info['device'] : 1],
+            'FamilyInfo'   => ['caption' => $this->FamilyText()],
+            'X1Watchdog'   => ['visible' => $this->EffFamily() === ANKRegisters::FAMILY_X1],
+            'X1WatchdogInfo' => ['visible' => $this->EffFamily() === ANKRegisters::FAMILY_X1],
+            'PanelValues'  => ['caption' => $this->ValuesCaption()],
+            'ValueSelection' => ['values' => $this->SelectionRows()],
             'PanelControl' => ['caption' => 'Steuerung (' . ($allow ? 'erlaubt' : 'nicht erlaubt – nur lesen') . ')'],
             'PanelGrid'    => ['caption' => 'Netzregelung (' . $this->GridCaption() . ')'],
             'GridInfo'     => ['caption' => $this->GridInfoText()]
@@ -435,16 +480,13 @@ class AnkerSolix extends IPSModule
         }
         $parts = [];
         $parts[] = $this->GetValue('Online') ? '● Verbunden' : '○ Nicht erreichbar';
-        $model = (string) $this->GetValue('Model');
-        if ($model !== '') {
-            $parts[] = str_replace('Anker SOLIX ', '', $model);
-        }
-        $parts[] = 'Akku ' . $this->GetValue('SOC') . ' %';
+        $parts[] = str_replace('Anker SOLIX ', '', $this->DeviceLabel());
+        $parts[] = 'Akku ' . $this->GetBuffer('LastSOC') . ' %';
         if ($this->GetValue('Control') === self::CONTROL_MANUAL) {
             $parts[] = 'Manuell: ' . (self::REG_TEXT[$this->GetValue('Regulation')] ?? '?');
             $parts[] = 'Soll ' . sprintf('%+d', $this->GetValue('Setpoint')) . ' W';
         } else {
-            $parts[] = 'Anker regelt (' . (ANKRegisters::MODES[$this->GetValue('DeviceMode')] ?? '?') . ')';
+            $parts[] = 'Anker regelt (' . $this->ModeText((int) $this->GetBuffer('LastMode')) . ')';
         }
         $parts[] = 'letzte Abfrage ' . date('H:i:s', $last);
         return implode('  ·  ', $parts);
@@ -551,8 +593,10 @@ class AnkerSolix extends IPSModule
         $range = $this->PowerRange();
         $minCharge = min($range, max(0, $this->ReadPropertyInteger('MinChargePower')));
         $minDischarge = min($range, max(0, $this->ReadPropertyInteger('MinDischargePower')));
+        $family = $this->EffFamily();
+        $profile = $this->Profile();
 
-        // --- Bedienung
+        // --- Bedienung (immer vorhanden)
         $this->RegisterVariableInteger('Control', 'Steuerung', $this->PresChoice(self::CONTROL_TEXT, $allow), 10);
         $this->RegisterVariableInteger('Regulation', 'Regelung', $this->PresChoice(self::REG_TEXT, $allow), 11);
         $this->RegisterVariableInteger('ChargePower', 'Ladeleistung', $this->PresPower($minCharge, $range, $allow), 12);
@@ -560,9 +604,10 @@ class AnkerSolix extends IPSModule
         $this->RegisterVariableInteger('ExternalSetpoint', 'Externe Vorgabe', $this->PresPower(-$range, $range, $allow), 14);
         $this->RegisterVariableInteger('MaxChargePower', 'Max. Ladeleistung', $this->PresPower(0, $range, $allow), 15);
         $this->RegisterVariableInteger('MaxDischargePower', 'Max. Entladeleistung', $this->PresPower(0, $range, $allow), 16);
-        $this->RegisterVariableInteger('AnkerMode', 'Anker-Betriebsart', $this->PresChoice(ANKRegisters::ANKER_MODES, $allow), 17);
+        $this->RegisterVariableInteger('AnkerMode', 'Anker-Betriebsart', $this->PresChoice($profile['ankerModes'], $allow), 17);
         $this->RegisterVariableInteger('Setpoint', 'Sollleistung am Gerät', $this->PresValue(' W'), 18);
         $this->RegisterVariableString('ControlInfo', 'Regelung – Hinweis', '', 19);
+        $this->RegisterVariableBoolean('Online', 'Erreichbar', $this->PresBool('Nein', 'Ja'), 83);
 
         foreach (['Control', 'Regulation', 'ChargePower', 'DischargePower', 'ExternalSetpoint', 'MaxChargePower', 'MaxDischargePower', 'AnkerMode'] as $ident) {
             if ($allow) {
@@ -572,35 +617,14 @@ class AnkerSolix extends IPSModule
             }
         }
 
-        // --- Messwerte
-        $this->RegisterVariableInteger('Status', 'Status', $this->PresText(ANKRegisters::BATTERY_STATUS), 30);
-        $this->RegisterVariableInteger('SOC', 'Ladezustand', $this->PresValue(' %'), 31);
-        $this->RegisterVariableInteger('BatteryPower', 'Batterieleistung', $this->PresValue(' W'), 32);
-        $this->RegisterVariableInteger('PVPower', 'PV-Leistung', $this->PresValue(' W'), 33);
-        $this->RegisterVariableInteger('GridPower', 'Netzleistung (Gerät)', $this->PresValue(' W'), 34);
-        $this->RegisterVariableInteger('LoadPower', 'Hausverbrauch (Gerät)', $this->PresValue(' W'), 35);
-        $this->RegisterVariableInteger('ACOutputPower', 'AC-Ausgangsleistung', $this->PresValue(' W'), 36);
-        $this->RegisterVariableInteger('DeviceMode', 'Betriebsart am Gerät', $this->PresText(ANKRegisters::MODES), 37);
-
-        // --- Energie
-        $this->RegisterVariableFloat('PVEnergy', 'PV-Ertrag gesamt', $this->PresValue(' kWh', 1), 50);
-        $this->RegisterVariableFloat('ChargeEnergy', 'Geladen gesamt', $this->PresValue(' kWh', 1), 51);
-        $this->RegisterVariableFloat('DischargeEnergy', 'Entladen gesamt', $this->PresValue(' kWh', 1), 52);
-        $this->RegisterVariableFloat('RatedEnergy', 'Nennkapazität', $this->PresValue(' kWh', 1), 53);
-
-        // --- Grenzen am Gerät (aus der Anker-App)
-        $this->RegisterVariableInteger('DeviceMaxCharge', 'Gerätegrenze Laden', $this->PresValue(' W'), 60);
-        $this->RegisterVariableInteger('DeviceMaxDischarge', 'Gerätegrenze Entladen', $this->PresValue(' W'), 61);
-        $this->RegisterVariableInteger('ChargeLimitSOC', 'Ladegrenze (App)', $this->PresValue(' %'), 62);
-        $this->RegisterVariableInteger('DischargeLimitSOC', 'Entladegrenze (App)', $this->PresValue(' %'), 63);
-        $this->RegisterVariableInteger('BackupReserveSOC', 'Notstrom-Reserve (App)', $this->PresValue(' %'), 64);
-        $this->RegisterVariableBoolean('BackupEnabled', 'Notstrom-Reserve aktiv', $this->PresBool('Nein', 'Ja'), 65);
-
-        // --- Gerät
-        $this->RegisterVariableString('Model', 'Modell', '', 80);
-        $this->RegisterVariableString('Serial', 'Seriennummer', '', 81);
-        $this->RegisterVariableString('Firmware', 'Firmware', '', 82);
-        $this->RegisterVariableBoolean('Online', 'Erreichbar', $this->PresBool('Nein', 'Ja'), 83);
+        // --- Messwerte: je nach Gerätefamilie und Auswahl im Formular
+        $types = ['i' => VARIABLETYPE_INTEGER, 'f' => VARIABLETYPE_FLOAT, 's' => VARIABLETYPE_STRING, 'b' => VARIABLETYPE_BOOLEAN];
+        foreach (ANKRegisters::CATALOG as $ident => [$name, $type, $kind, $position, $families, $raw, $convert, $default]) {
+            $wanted = in_array($family, $families, true) && $this->ValueWanted($ident, $default);
+            // Archivierte Variablen bleiben erhalten, auch wenn sie abgewählt sind
+            $keep = $wanted || $this->IsArchived($ident);
+            $this->MaintainVariable($ident, $name, $types[$type], $this->PresKind($kind, $profile), $position, $keep);
+        }
 
         // Startwerte nur beim allerersten Mal
         $this->InitValue('MaxChargePower', $range);
@@ -608,6 +632,159 @@ class AnkerSolix extends IPSModule
         $this->InitValue('ChargePower', $minCharge);
         $this->InitValue('DischargePower', $minDischarge);
         $this->InitValue('AnkerMode', $this->ReadAttributeInteger('AnkerMode'));
+    }
+
+    /** Darstellung zu einer Katalog-Art */
+    private function PresKind(string $kind, array $profile)
+    {
+        switch ($kind) {
+            case 'W':
+                return $this->PresValue(' W');
+            case '%':
+                return $this->PresValue(' %');
+            case 's':
+                return $this->PresValue(' s');
+            case 'V':
+                return $this->PresValue(' V', 1);
+            case '°C':
+                return $this->PresValue(' °C', 1);
+            case 'kWh':
+                return $this->PresValue(' kWh', 1);
+            case 'count':
+                return $this->PresValue('');
+            case 'bool':
+                return $this->PresBool('Nein', 'Ja');
+            case 'status':
+                return $this->PresText(ANKRegisters::BATTERY_STATUS);
+            case 'plant':
+                return $this->PresText(ANKRegisters::PLANT_STATUS);
+            case 'mode':
+                return $this->PresText($profile['modes']);
+            default:
+                return '';
+        }
+    }
+
+    // ---------------------------------------------------------------- Gerätefamilie und Werte-Auswahl
+
+    /** Erkannte oder fest eingestellte Familie; solange unbekannt, gilt die Solarbank-Familie. */
+    private function EffFamily(): string
+    {
+        $family = $this->ReadAttributeString('Family');
+        return $family !== '' ? $family : ANKRegisters::FAMILY_SB;
+    }
+
+    private function Profile(): array
+    {
+        return ANKRegisters::Profile($this->EffFamily());
+    }
+
+    private function ModeText(int $mode): string
+    {
+        return $this->Profile()['modes'][$mode] ?? ('Betriebsart ' . $mode);
+    }
+
+    private function DeviceLabel(): string
+    {
+        $model = (string) $this->GetBuffer('LastModel');
+        return $model !== '' ? $model : 'Gerät';
+    }
+
+    private function FamilyText(): string
+    {
+        $family = $this->ReadAttributeString('Family');
+        if ($family === '') {
+            return 'Erkannt: noch nichts – das Gerät wird bei der ersten Abfrage erkannt.';
+        }
+        $text = 'Erkannt: ' . ANKRegisters::FAMILY_NAMES[$family];
+        $model = (string) $this->GetBuffer('LastModel');
+        if ($model !== '') {
+            $text .= ' (' . $model . ')';
+        }
+        $pv = $this->ReadAttributeInteger('HasPV');
+        if ($pv === 0) {
+            $text .= ' · ohne eigene PV-Eingänge';
+        }
+        return $text;
+    }
+
+    /** Gespeicherte Auswahl als Ident => bool */
+    private function SavedSelection(): array
+    {
+        $saved = [];
+        $rows = json_decode($this->ReadPropertyString('ValueSelection'), true);
+        foreach (is_array($rows) ? $rows : [] as $row) {
+            if (isset($row['Ident'])) {
+                $saved[(string) $row['Ident']] = !empty($row['Show']);
+            }
+        }
+        return $saved;
+    }
+
+    /** Soll die Variable angelegt sein? Gespeicherte Auswahl hat Vorrang, sonst der Standard des Katalogs. */
+    private function ValueWanted(string $ident, $default): bool
+    {
+        $saved = $this->SavedSelection();
+        if (array_key_exists($ident, $saved)) {
+            return $saved[$ident];
+        }
+        if ($default === 'pv') {
+            return $this->ReadAttributeInteger('HasPV') !== 0;
+        }
+        return (bool) $default;
+    }
+
+    private function VarID(string $ident): int
+    {
+        $id = @IPS_GetObjectIDByIdent($ident, $this->InstanceID);
+        return $id === false ? 0 : (int) $id;
+    }
+
+    /** Wert einer eigenen Variable oder null, wenn sie nicht angelegt ist. */
+    private function Val(string $ident)
+    {
+        $id = $this->VarID($ident);
+        return $id > 0 ? GetValue($id) : null;
+    }
+
+    /** Wird die Variable im Archiv aufgezeichnet? (nur lesend) */
+    private function IsArchived(string $ident): bool
+    {
+        $id = $this->VarID($ident);
+        if ($id === 0) {
+            return false;
+        }
+        $archives = IPS_GetInstanceListByModuleID('{43192F0B-135B-4CE7-A0A7-1475603F3060}');
+        return count($archives) > 0 && AC_GetLoggingStatus($archives[0], $id);
+    }
+
+    /** Zeilen der Liste „Werte auswählen“ – aus dem Katalog, die gespeicherte Auswahl per Ident darübergelegt. */
+    private function SelectionRows(): array
+    {
+        $family = $this->EffFamily();
+        $rows = [];
+        foreach (ANKRegisters::CATALOG as $ident => [$name, $type, $kind, $position, $families, $raw, $convert, $default]) {
+            if (!in_array($family, $families, true)) {
+                continue;
+            }
+            $id = $this->VarID($ident);
+            $archived = $this->IsArchived($ident);
+            $rows[] = [
+                'Show'    => $this->ValueWanted($ident, $default),
+                'Name'    => $name,
+                'Value'   => $id > 0 ? GetValueFormatted($id) : '–',
+                'Archive' => $archived ? 'archiviert – bleibt erhalten' : '',
+                'Ident'   => $ident
+            ];
+        }
+        return $rows;
+    }
+
+    private function ValuesCaption(): string
+    {
+        $rows = $this->SelectionRows();
+        $shown = count(array_filter($rows, static fn($row) => $row['Show']));
+        return 'Werte auswählen (' . $shown . ' von ' . count($rows) . ' angezeigt)';
     }
 
     private function InitValue(string $ident, int $value): void
@@ -618,11 +795,14 @@ class AnkerSolix extends IPSModule
         }
     }
 
-    /** Nur schreiben, wenn sich der Wert ändert – oder beim allerersten Mal. */
+    /** Nur schreiben, wenn sich der Wert ändert – oder beim allerersten Mal. Abgewählte Variablen werden übersprungen. */
     private function SetVal(string $ident, $value): void
     {
-        $id = $this->GetIDForIdent($ident);
-        if ($this->GetValue($ident) !== $value || (int) IPS_GetVariable($id)['VariableUpdated'] === 0) {
+        $id = $this->VarID($ident);
+        if ($id === 0) {
+            return;
+        }
+        if (GetValue($id) !== $value || (int) IPS_GetVariable($id)['VariableUpdated'] === 0) {
             $this->SetValue($ident, $value);
         }
     }
@@ -755,7 +935,9 @@ class AnkerSolix extends IPSModule
             if ($before !== null) {
                 $before();
             }
-            $data = $this->ReadDevice();
+            $family = $this->DetectFamily();
+            $data = $this->ReadDevice($family);
+            $this->AdoptDevice($family, $data);
             $this->Publish($data);
             $this->ControlStep($data);
             $this->NoteSuccess();
@@ -811,19 +993,86 @@ class AnkerSolix extends IPSModule
         }
     }
 
-    /** @return array<string, mixed> Ident aus ANKRegisters::VALUES => Wert */
-    private function ReadDevice(): array
+    /**
+     * Gerätefamilie bestimmen: fest eingestellt, schon erkannt oder jetzt am Modellnamen der X1 erkennen.
+     * Übernommen wird das Ergebnis erst, wenn die Abfrage danach gelingt (AdoptDevice).
+     */
+    private function DetectFamily(): string
     {
+        $family = $this->ReadAttributeString('Family');
+        if ($family !== '') {
+            return $family;
+        }
+        try {
+            $words = $this->MbRead(ANKRegisters::INPUT, ANKRegisters::X1_MODEL_REGISTER, ANKRegisters::X1_MODEL_COUNT);
+            $text = self::MbString($words, 0, count($words), false) . ' ' . self::MbString($words, 0, count($words), true);
+            if (stripos($text, 'X1-') !== false) {
+                $this->SendDebug('Erkennung', 'X1 erkannt: ' . trim($text), 0);
+                return ANKRegisters::FAMILY_X1;
+            }
+        } catch (Exception $e) {
+            $this->SendDebug('Erkennung', 'Kein X1-Modellname lesbar (' . $e->getMessage() . ')', 0);
+        }
+        return ANKRegisters::FAMILY_SB;
+    }
+
+    /** Nach gelungener Abfrage: Familie, Modell und PV-Ausstattung merken; bei Änderung die Variablen anpassen. */
+    private function AdoptDevice(string $family, array $data): void
+    {
+        $changed = false;
+        if ($this->ReadAttributeString('Family') !== $family) {
+            $this->WriteAttributeString('Family', $family);
+            $this->LogMessage('Gerätefamilie erkannt: ' . ANKRegisters::FAMILY_NAMES[$family], KL_MESSAGE);
+            $changed = true;
+        }
+
+        $model = '';
+        $hasPV = $this->ReadAttributeInteger('HasPV');
+        if ($family === ANKRegisters::FAMILY_X1) {
+            if (isset($data['ModelName']) && $data['ModelName'] !== '') {
+                $model = 'Anker SOLIX ' . $data['ModelName'];
+            }
+            $hasPV = 1;
+            foreach (['LimitCharge' => 'RatedPower', 'LimitDischarge' => 'MaxActivePower'] as $attribute => $key) {
+                if (isset($data[$key]) && abs((int) $data[$key]) > 0 && $this->ReadAttributeInteger($attribute) !== abs((int) $data[$key])) {
+                    $this->WriteAttributeInteger($attribute, abs((int) $data[$key]));
+                }
+            }
+        } elseif (isset($data['Serial'])) {
+            $product = ANKRegisters::ProductFromSerial((string) $data['Serial']);
+            if ($product !== null) {
+                $model = $product[0];
+                $hasPV = $product[1] ? 1 : 0;
+            } elseif (($data['ModelCode'] ?? '') !== '') {
+                $model = (string) $data['ModelCode'];
+            }
+        }
+        if ($model !== '') {
+            $this->SetBuffer('LastModel', $model);
+        }
+        if ($hasPV !== $this->ReadAttributeInteger('HasPV')) {
+            $this->WriteAttributeInteger('HasPV', $hasPV);
+            $changed = true;
+        }
+        if ($changed) {
+            $this->MaintainVariables();
+        }
+    }
+
+    /** @return array<string, mixed> Rohwerte laut Registerkarte der Familie */
+    private function ReadDevice(string $family): array
+    {
+        $profile = ANKRegisters::Profile($family);
         $slowDue = (time() - (int) $this->GetBuffer('LastSlow')) >= max(10, $this->ReadPropertyInteger('SlowInterval'));
         $blocks = [];
 
-        foreach (ANKRegisters::BLOCKS as $name => [$type, $start, $count, $required]) {
+        foreach ($profile['blocks'] as $name => [$type, $start, $count, $required]) {
             if ($required) {
                 $blocks[$name] = $this->MbRead($type, $start, $count);
             }
         }
         if ($slowDue) {
-            foreach (ANKRegisters::BLOCKS as $name => [$type, $start, $count, $required]) {
+            foreach ($profile['blocks'] as $name => [$type, $start, $count, $required]) {
                 if ($required) {
                     continue;
                 }
@@ -837,66 +1086,72 @@ class AnkerSolix extends IPSModule
             $this->SetBuffer('LastSlow', (string) time());
         }
 
+        $lowWord = $profile['lowWordFirst'];
+        $lowByte = $profile['lowByteFirst'];
         $data = [];
-        foreach (ANKRegisters::VALUES as $ident => [$block, $register, $type, $divisor]) {
+        foreach ($profile['values'] as $key => [$block, $register, $type]) {
             if (!isset($blocks[$block])) {
                 continue;
             }
-            $offset = $register - ANKRegisters::BLOCKS[$block][1];
+            $offset = $register - $profile['blocks'][$block][1];
             $words = $blocks[$block];
             if ($type === 'u16') {
+                $data[$key] = $words[$offset] ?? 0;
+            } elseif ($type === 'i16') {
                 $value = $words[$offset] ?? 0;
+                $data[$key] = $value >= 0x8000 ? $value - 0x10000 : $value;
             } elseif ($type === 'i32') {
-                $value = self::MbInt32($words, $offset);
+                $data[$key] = self::MbInt32($words, $offset, $lowWord);
             } elseif ($type === 'u32') {
-                $value = self::MbUInt32($words, $offset);
+                $data[$key] = self::MbUInt32($words, $offset, $lowWord);
             } else {
-                $value = self::MbString($words, $offset, (int) substr($type, 3));
+                $data[$key] = self::MbString($words, $offset, (int) substr($type, 3), $lowByte);
             }
-            if ($divisor !== 1 && !is_string($value)) {
-                $value = $value / $divisor;
-            }
-            $data[$ident] = $value;
         }
         return $data;
     }
 
     private function Publish(array $data): void
     {
-        $this->SetVal('Status', (int) $data['BatteryStatus']);
-        $this->SetVal('SOC', (int) $data['SOC']);
-        $this->SetVal('BatteryPower', -(int) $data['BatteryPowerRaw']);
-        $this->SetVal('PVPower', (int) $data['PVPowerOwn'] + (int) $data['PVPowerThird']);
-        $this->SetVal('GridPower', (int) $data['GridPower']);
-        $this->SetVal('LoadPower', (int) $data['LoadPower']);
-        $this->SetVal('ACOutputPower', (int) $data['ACOutputPower']);
-        $this->SetVal('DeviceMode', (int) $data['DeviceMode']);
-        $this->SetVal('PVEnergy', (float) $data['PVEnergy']);
-        $this->SetVal('ChargeEnergy', (float) $data['ChargeEnergy']);
-        $this->SetVal('DischargeEnergy', (float) $data['DischargeEnergy']);
-        $this->SetVal('RatedEnergy', (float) $data['RatedEnergy']);
-        $this->SetVal('DeviceMaxCharge', abs((int) $data['DeviceMaxCharge']));
-        $this->SetVal('DeviceMaxDischarge', abs((int) $data['DeviceMaxDischarge']));
-
-        if (isset($data['Serial'])) {
-            $this->SetVal('Serial', (string) $data['Serial']);
-            $this->SetVal('Firmware', (string) $data['Firmware']);
-        }
-        if (isset($data['Serial']) || isset($data['ModelCode'])) {
-            $model = ANKRegisters::ModelFromSerial((string) ($data['Serial'] ?? $this->GetValue('Serial')));
-            if ($model === '') {
-                $model = (string) ($data['ModelCode'] ?? '');
+        $divisor = $this->Profile()['energyDivisor'];
+        foreach (ANKRegisters::CATALOG as $ident => [$name, $type, $kind, $position, $families, $raw, $convert, $default]) {
+            if ($raw === '' || !isset($data[$raw])) {
+                continue;
             }
-            if ($model !== '') {
-                $this->SetVal('Model', $model);
+            $value = $data[$raw];
+            switch ($convert) {
+                case 'neg':
+                    $value = -(int) $value;
+                    break;
+                case 'abs':
+                    $value = abs((int) $value);
+                    break;
+                case 'energy':
+                    $value = $value / $divisor;
+                    break;
+                case 'div10':
+                    $value = $value / 10;
+                    break;
+                case 'is1':
+                    $value = (int) $value === 1;
+                    break;
             }
+            if ($type === 'i') {
+                $value = (int) $value;
+            } elseif ($type === 'f') {
+                $value = (float) $value;
+            } elseif ($type === 's') {
+                $value = (string) $value;
+            }
+            $this->SetVal($ident, $value);
         }
-        if (isset($data['ChargeLimitSOC'])) {
-            $this->SetVal('ChargeLimitSOC', (int) $data['ChargeLimitSOC']);
-            $this->SetVal('DischargeLimitSOC', (int) $data['DischargeLimitSOC']);
-            $this->SetVal('BackupReserveSOC', (int) $data['BackupReserveSOC']);
-            $this->SetVal('BackupEnabled', (int) $data['BackupEnabled'] === 1);
+        $model = (string) $this->GetBuffer('LastModel');
+        if ($model !== '') {
+            $this->SetVal('Model', $model);
         }
+        // Für Überblick und „Verbindung prüfen“ – unabhängig davon, welche Variablen angelegt sind
+        $this->SetBuffer('LastSOC', (string) (int) $data['SOC']);
+        $this->SetBuffer('LastMode', (string) (int) $data['DeviceMode']);
     }
 
     // ================================================================ Steuerung
@@ -914,7 +1169,7 @@ class AnkerSolix extends IPSModule
         }
         $manual = ($mode === ANKRegisters::MODE_THIRD_PARTY);
 
-        if (!$manual && isset(ANKRegisters::ANKER_MODES[$mode])) {
+        if (!$manual && isset($this->Profile()['ankerModes'][$mode])) {
             if ($this->ReadAttributeInteger('AnkerMode') !== $mode) {
                 $this->WriteAttributeInteger('AnkerMode', $mode);
             }
@@ -933,7 +1188,7 @@ class AnkerSolix extends IPSModule
         if (!$manual) {
             $this->SetBuffer('LastSent', '');
             $this->SetVal('Setpoint', 0);
-            $this->SetVal('ControlInfo', 'Anker regelt selbst (' . (ANKRegisters::MODES[$mode] ?? ('Betriebsart ' . $mode)) . ').');
+            $this->SetVal('ControlInfo', 'Anker regelt selbst (' . $this->ModeText($mode) . ').');
             return;
         }
         if (!$allow) {
@@ -942,6 +1197,7 @@ class AnkerSolix extends IPSModule
             return;
         }
 
+        $this->MaintainDeviceWatchdog($data);
         [$target, $info, $expired] = $this->ComputeTarget($data);
 
         if ($expired && $this->ReadPropertyBoolean('FallbackToAnker')) {
@@ -1014,11 +1270,14 @@ class AnkerSolix extends IPSModule
 
         $notes = [];
 
-        // Oberste Grenzen: eigene Variablen und Gerätegrenze, der kleinere Wert zählt
+        // Oberste Grenzen: die eigenen Variablen, bei der X1 zusätzlich die Nennleistung laut Gerät.
+        // Die Register „ladbare / entladbare Leistung“ (10036/10038) werden bewusst nicht als Grenze
+        // benutzt: Sie folgen bei Fremdsteuerung der laufenden Vorgabe (an einer X1 gemessen: 40 W im
+        // Stillstand) und würden jede neue Vorgabe abwürgen. Das Gerät begrenzt ohnehin selbst.
         $maxCharge = min($this->PowerRange(), max(0, (int) $this->GetValue('MaxChargePower')));
         $maxDischarge = min($this->PowerRange(), max(0, (int) $this->GetValue('MaxDischargePower')));
-        $deviceCharge = abs((int) $data['DeviceMaxCharge']);
-        $deviceDischarge = abs((int) $data['DeviceMaxDischarge']);
+        $deviceCharge = $this->ReadAttributeInteger('LimitCharge');
+        $deviceDischarge = $this->ReadAttributeInteger('LimitDischarge');
         if ($deviceCharge > 0) {
             $maxCharge = min($maxCharge, $deviceCharge);
         }
@@ -1152,10 +1411,33 @@ class AnkerSolix extends IPSModule
 
     // ---------------------------------------------------------------- Schreiben
 
+    /**
+     * Nur X1: Der Wechselrichter fällt von selbst auf Eigenverbrauch zurück, wenn so viele Sekunden lang
+     * kein Modbus-Verkehr mehr kommt (Register 10080, Werkswert 1800). Auf Wunsch stellt das Modul den Wert ein.
+     */
+    private function MaintainDeviceWatchdog(array $data): void
+    {
+        $wanted = $this->ReadPropertyInteger('X1Watchdog');
+        if ($wanted <= 0 || $this->EffFamily() !== ANKRegisters::FAMILY_X1 || !isset($data['DeviceWatchdog'])) {
+            return;
+        }
+        $wanted = $this->Clamp($wanted, 30, 3600);
+        if ((int) $data['DeviceWatchdog'] === $wanted || (time() - (int) $this->GetBuffer('WatchdogWrite')) < 60) {
+            return;
+        }
+        $this->SetBuffer('WatchdogWrite', (string) time());
+        try {
+            $this->SendDebug('Schreiben 10080', 'Geräte-Wächter ' . $wanted . ' s', 0);
+            $this->MbWriteSingle(ANKRegisters::REG_WATCHDOG, $wanted);
+        } catch (Exception $e) {
+            $this->SendDebug('Schreiben 10080', 'nicht angenommen: ' . $e->getMessage(), 0);
+        }
+    }
+
     /** Betriebsart schreiben und zurücklesen. Abweichung wird gemeldet, nicht als Fehler gewertet. */
     private function WriteMode(int $mode): void
     {
-        $this->SendDebug('Schreiben 10064', 'Betriebsart ' . $mode . ' (' . (ANKRegisters::MODES[$mode] ?? '?') . ')', 0);
+        $this->SendDebug('Schreiben 10064', 'Betriebsart ' . $mode . ' (' . $this->ModeText($mode) . ')', 0);
         $this->MbWriteSingle(ANKRegisters::REG_MODE, $mode);
         $this->SetBuffer('ModeWritten', (string) $mode);
         $this->SetBuffer('ModeWriteTime', (string) time());
@@ -1170,7 +1452,7 @@ class AnkerSolix extends IPSModule
     {
         try {
             $this->SendDebug('Schreiben 10071', sprintf('%+d W (ans Gerät: %d)', $watt, -$watt), 0);
-            $this->MbWriteMultiple(ANKRegisters::REG_SETPOINT, self::MbFromInt32(-$watt));
+            $this->MbWriteMultiple(ANKRegisters::REG_SETPOINT, self::MbFromInt32(-$watt, $this->Profile()['lowWordFirst']));
             $this->SetBuffer('LastSent', (string) $watt);
             $this->SetBuffer('LastWrite', (string) time());
             return '';

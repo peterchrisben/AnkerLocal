@@ -23,6 +23,36 @@
         {
           "type": "Label",
           "caption": "Die Verbindung läuft über ein ModBus Gateway von Symcon. IP-Adresse, Port und Geräte-ID trägst du ganz unten unter „Verbindung einstellen“ ein."
+        },
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "Select",
+              "name": "DeviceFamily",
+              "caption": "Gerätefamilie",
+              "width": "320px",
+              "options": [
+                {
+                  "caption": "automatisch erkennen",
+                  "value": 0
+                },
+                {
+                  "caption": "Solarbank Max / Max AC, XE / XE AC, Solarbank 4 Pro",
+                  "value": 1
+                },
+                {
+                  "caption": "X1-Serie",
+                  "value": 2
+                }
+              ]
+            },
+            {
+              "type": "Label",
+              "name": "FamilyInfo",
+              "caption": ""
+            }
+          ]
         }
       ]
     },
@@ -71,6 +101,19 @@
               "width": "300px"
             }
           ]
+        },
+        {
+          "type": "NumberSpinner",
+          "name": "X1Watchdog",
+          "caption": "Nur X1 – Wächter im Gerät (Sekunden, 0 = nicht ändern)",
+          "minimum": 0,
+          "maximum": 3600,
+          "width": "400px"
+        },
+        {
+          "type": "Label",
+          "name": "X1WatchdogInfo",
+          "caption": "Die X1 fällt von selbst auf Eigenverbrauch zurück, wenn so lange keine Abfrage mehr kommt (Werkswert 1800 Sekunden, erlaubt 30 bis 3600)."
         }
       ]
     },
@@ -264,7 +307,75 @@
         },
         {
           "type": "Label",
-          "caption": "Die höchste Lade- und Entladeleistung stellst du im Betrieb über die Variablen „Max. Ladeleistung“ und „Max. Entladeleistung“ ein."
+          "caption": "Die höchste Lade- und Entladeleistung stellst du im Betrieb über die Variablen „Max. Ladeleistung“ und „Max. Entladeleistung“ ein. Bei der X1 gilt zusätzlich die Nennleistung des Geräts."
+        }
+      ]
+    },
+    {
+      "type": "ExpansionPanel",
+      "name": "PanelValues",
+      "caption": "Werte auswählen",
+      "expanded": false,
+      "items": [
+        {
+          "type": "Label",
+          "caption": "Ohne Häkchen wird die Variable nicht angelegt bzw. entfernt. Variablen, die im Archiv aufgezeichnet werden, bleiben erhalten – erst die Archivierung ausschalten. Wirksam nach „Änderungen übernehmen“."
+        },
+        {
+          "type": "RowLayout",
+          "items": [
+            {
+              "type": "Button",
+              "caption": "Alle anhaken",
+              "onClick": "ANK_SelectAllValues($id, true);"
+            },
+            {
+              "type": "Button",
+              "caption": "Alle Häkchen entfernen",
+              "onClick": "ANK_SelectAllValues($id, false);"
+            }
+          ]
+        },
+        {
+          "type": "List",
+          "name": "ValueSelection",
+          "rowCount": 15,
+          "add": false,
+          "delete": false,
+          "loadValuesFromConfiguration": false,
+          "columns": [
+            {
+              "caption": "Anzeigen",
+              "name": "Show",
+              "width": "110px",
+              "edit": {
+                "type": "CheckBox"
+              }
+            },
+            {
+              "caption": "Wert",
+              "name": "Name",
+              "width": "auto"
+            },
+            {
+              "caption": "Aktuell",
+              "name": "Value",
+              "width": "240px"
+            },
+            {
+              "caption": "Archiv",
+              "name": "Archive",
+              "width": "260px"
+            },
+            {
+              "caption": "Ident",
+              "name": "Ident",
+              "width": "0px",
+              "visible": false,
+              "save": true
+            }
+          ],
+          "values": []
         }
       ]
     },

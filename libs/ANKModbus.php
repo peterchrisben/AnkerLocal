@@ -108,40 +108,59 @@ trait ANKModbus
 
     // ---------------------------------------------------------------- Umrechnung
 
-    /** @param int[] $words */
-    private static function MbInt32(array $words, int $offset): int
+    /**
+     * @param int[] $words
+     * @param bool $lowWordFirst true = niederwertiges Wort zuerst (X1), false = höherwertiges zuerst (Solarbank)
+     */
+    private static function MbInt32(array $words, int $offset, bool $lowWordFirst = false): int
     {
-        $high = $words[$offset] ?? 0;
+        $high = $words[$offset + ($lowWordFirst ? 1 : 0)] ?? 0;
+        $low = $words[$offset + ($lowWordFirst ? 0 : 1)] ?? 0;
         if ($high >= 0x8000) {
             $high -= 0x10000;
         }
-        return $high * 65536 + ($words[$offset + 1] ?? 0);
+        return $high * 65536 + $low;
     }
 
     /**
      * @param int[] $words
      * @return int|float float nur auf 32-Bit-Systemen bei sehr großen Werten
      */
-    private static function MbUInt32(array $words, int $offset)
+    private static function MbUInt32(array $words, int $offset, bool $lowWordFirst = false)
     {
-        return ($words[$offset] ?? 0) * 65536 + ($words[$offset + 1] ?? 0);
+        $high = $words[$offset + ($lowWordFirst ? 1 : 0)] ?? 0;
+        $low = $words[$offset + ($lowWordFirst ? 0 : 1)] ?? 0;
+        return $high * 65536 + $low;
     }
 
-    /** @param int[] $words */
-    private static function MbString(array $words, int $offset, int $count): string
+    /**
+     * Text aus Registern; endet am ersten Nullzeichen.
+     *
+     * @param int[] $words
+     * @param bool $lowByteFirst true = niederwertiges Byte zuerst (X1)
+     */
+    private static function MbString(array $words, int $offset, int $count, bool $lowByteFirst = false): string
     {
         $text = '';
         for ($i = 0; $i < $count; $i++) {
             $word = $words[$offset + $i] ?? 0;
-            $text .= chr(($word >> 8) & 0xFF) . chr($word & 0xFF);
+            $high = chr(($word >> 8) & 0xFF);
+            $low = chr($word & 0xFF);
+            $text .= $lowByteFirst ? $low . $high : $high . $low;
+        }
+        $end = strpos($text, "\0");
+        if ($end !== false) {
+            $text = substr($text, 0, $end);
         }
         $text = preg_replace('/[^\x20-\x7E]/', '', $text);
         return trim((string) $text);
     }
 
-    /** @return int[] zwei Register (hoch, niedrig) */
-    private static function MbFromInt32(int $value): array
+    /** @return int[] zwei Register in der Reihenfolge, die das Gerät erwartet */
+    private static function MbFromInt32(int $value, bool $lowWordFirst = false): array
     {
-        return [($value >> 16) & 0xFFFF, $value & 0xFFFF];
+        $high = ($value >> 16) & 0xFFFF;
+        $low = $value & 0xFFFF;
+        return $lowWordFirst ? [$low, $high] : [$high, $low];
     }
 }

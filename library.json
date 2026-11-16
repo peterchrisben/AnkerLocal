@@ -3,8 +3,10 @@
   "author": "Peter Chrisben",
   "name": "ANKERlocal",
   "url": "https://github.com/peterchrisben/ANKERlocal",
-  "compatibility": { "version": "8.0" },
+  "compatibility": {
+    "version": "8.0"
+  },
   "version": "1.0",
-  "build": 1,
-  "date": 1794700800
+  "build": 2,
+  "date": 1794787200
 }

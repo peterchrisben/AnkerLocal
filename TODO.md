@@ -34,4 +34,13 @@ Build 1 ist nur gegen einen nachgebauten Speicher getestet (`tests/sim.php`). Al
 | Umstellen in der App | In der App auf Drittanbieter stellen → Variable „Steuerung“ folgt, Regelung geht auf Pause. | bei Gelegenheit | offen |
 | Notstrom-Reserve | Verhalten, wenn der Ladezustand unter der Reserve liegt (lädt er trotz Vorgabe aus dem Netz?). | bei Gelegenheit | offen |
 | Symcon-Neustart | Speicher in „Manuell/Laden“, Symcon neu starten: Läuft es danach richtig weiter? | bei Gelegenheit | offen |
+| Erkennung Solarbank / XE | Nach der ersten Abfrage: „Einrichtung“ zeigt „Erkannt: Solarbank / XE (Modell)“. Max AC / XE AC: „PV-Leistung“ und „PV-Ertrag gesamt“ verschwinden von selbst, „· ohne eigene PV-Eingänge“ steht dabei. | sobald das Gerät da ist | offen |
+| Werte auswählen | Häkchen entfernen → Variable weg; Häkchen setzen → Variable wieder da mit Wert. Archivierte Variable bleibt trotz fehlendem Häkchen („archiviert – bleibt erhalten“). | geht schon ohne Gerät | offen |
+| Fremd-PV-Leistung | Liefert das Register bei einer Max AC etwas (z. B. mit Smart Plug am Wechselrichter)? Sonst abwählen. | Tag mit Sonne | offen |
+| Ladbare / Entladbare Leistung | Wie verhalten sich die Werte bei der Solarbank im Stillstand und unter Vorgabe? (X1: folgen der Vorgabe.) | beim ersten Schalten | offen |
+| X1: Erkennung | „Erkannt: X1 (Anker SOLIX X1-H…)“, Seriennummer und Firmware lesbar (nicht verdreht)? | mit einer X1 | offen |
+| X1: Werte | Netz-, PV-, Batterieleistung plausibel (nicht riesig = Wortfolge falsch)? kWh-Zähler gleich der App (nicht Faktor 10)? | mit einer X1 | offen |
+| X1: Laden von Hand | 1000 W laden: lädt sie? Begrenzung auf Nennleistung? | mit einer X1 | offen |
+| X1: Geräte-Wächter | Variable zeigt 1800; im Formular 600 eintragen → nach „Manuell“ zeigt sie 600. Symcon-Abfrage stoppen: fällt die X1 nach der Zeit auf Eigenverbrauch zurück? | mit einer X1 | offen |
+| X1: Zurück zu Anker | Welche Betriebsart meldet die X1 danach (0, 16 oder 20)? | mit einer X1 | offen |
 | Darstellungen in der App | Alle Variablen in der Symcon-App (iOS) ansehen – keine Fehlermeldung statt Wert. | erster Tag | offen |

@@ -1,12 +1,12 @@
 {
   "id": "{4CEBEBDE-F119-4EEC-AA7A-9B8378CC309B}",
   "author": "Peter Chrisben",
-  "name": "ANKERlocal",
-  "url": "https://github.com/peterchrisben/ANKERlocal",
+  "name": "AnkerLocal",
+  "url": "https://github.com/peterchrisben/AnkerLocal",
   "compatibility": {
     "version": "8.0"
   },
   "version": "1.0",
-  "build": 2,
+  "build": 3,
   "date": 1794787200
 }

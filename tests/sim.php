@@ -70,10 +70,10 @@ function expectException(string $what, callable $fn): void
     }
 }
 
-$class = Stub::LoadModule(__DIR__ . '/../AnkerSolix');
+$class = Stub::LoadModule(__DIR__ . '/../AnkerLocal');
 
 /** Modul mit nachgebautem Gateway statt echtem Datenfluss */
-class AnkerSolixSim extends AnkerSolix
+class AnkerLocalSim extends AnkerLocal
 {
     protected function SendDataToParent($json)
     {
@@ -84,7 +84,7 @@ class AnkerSolixSim extends AnkerSolix
         return FakeAnker::$online && (int) (IPS_GetInstance($this->InstanceID)['ConnectionID'] ?? 0) > 0;
     }
 }
-$class = 'AnkerSolixSim';
+$class = 'AnkerLocalSim';
 
 echo "1 Anlegen ohne Gateway\n";
 $lonely = Stub::CreateInstance($class, []);

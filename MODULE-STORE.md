@@ -1,13 +1,13 @@
 # Module Store – Stand und Hinweise
 
-ANKERlocal ist so gebaut, dass es ohne Umbau eingereicht werden kann. Eingereicht ist noch nichts.
+AnkerLocal ist so gebaut, dass es ohne Umbau eingereicht werden kann. Eingereicht ist noch nichts.
 
 ## Vorgesehene Angaben
 
 | Feld | Wert |
 |---|---|
 | Bundle-ID | `io.github.peterchrisben.ankerlocal` |
-| Name im Store | ANKERlocal |
+| Name im Store | AnkerLocal |
 | Sprache | Deutsch |
 | Kategorie | Energie |
 | Doku-Link | README.md im Repo |

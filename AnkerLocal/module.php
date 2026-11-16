@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * ANKERlocal – Anker-SOLIX-Speicher lokal über Modbus TCP (ohne Cloud).
+ * AnkerLocal – Anker-SOLIX-Speicher lokal über Modbus TCP (ohne Cloud).
  *
  * Autor: Peter Chrisben
  * Lizenz: CC BY-NC-SA 4.0
@@ -17,7 +17,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../libs/ANKModbus.php';
 require_once __DIR__ . '/../libs/ANKRegisters.php';
 
-class AnkerSolix extends IPSModule
+class AnkerLocal extends IPSModule
 {
     use ANKModbus;
 
@@ -1491,6 +1491,6 @@ class AnkerSolix extends IPSModule
 
     private function SemaphoreKey(): string
     {
-        return 'ANKERlocal_' . $this->InstanceID;
+        return 'AnkerLocal_' . $this->InstanceID;
     }
 }

@@ -1,8 +1,8 @@
-# ANKERlocal
+# AnkerLocal
 
 Bindet Anker-SOLIX-Speicher **rein lokal** in Symcon ein – über Modbus TCP (ModBus Gateway von Symcon) im eigenen Netz, ohne Cloud und ohne Anker-Konto. Das Modul liest die Werte des Speichers und kann ihn auf Wunsch steuern: von Hand laden oder entladen, über einen eingebauten Regler auf eine Ziel-Netzleistung führen (Überschussladen / Nulleinspeisung) oder die Leistung von einem eigenen Energiemanager vorgeben lassen.
 
-**Aktuelle Version:** 1.0 Build 2 (16.11.2026) – **noch nicht an einem echten Gerät getestet** (siehe [TODO.md](TODO.md)).
+**Aktuelle Version:** 1.0 Build 3 (16.11.2026) – **noch nicht an einem echten Gerät getestet** (siehe [TODO.md](TODO.md)).
 
 ## Inhalt
 
@@ -47,9 +47,9 @@ Ist der Punkt in der App ausgegraut: Der Speicher ist offline, Teil einer Power 
 
 ## 3 Einrichtung
 
-Die Verbindung läuft über die Bordmittel von Symcon: **Client Socket** (IP-Adresse, Port) → **ModBus Gateway** (Geräte-ID) → **Anker Solix Speicher**.
+Die Verbindung läuft über die Bordmittel von Symcon: **Client Socket** (IP-Adresse, Port) → **ModBus Gateway** (Geräte-ID) → **AnkerLocal Speicher**.
 
-1. In Symcon „Instanz hinzufügen“ → **Anker Solix Speicher**.
+1. In Symcon „Instanz hinzufügen“ → **AnkerLocal Speicher**.
 2. Symcon fragt nach dem **ModBus Gateway**: ein vorhandenes Gateway zu diesem Speicher auswählen oder ein neues anlegen. Beim neuen Gateway legt Symcon auch den Client Socket an. Jeder Speicher braucht sein eigenes Gateway (eigene IP-Adresse).
 3. In der Instanz ganz unten unter **Verbindung einstellen** die IP-Adresse eintragen. Port 502 und Geräte-ID 1 sind vorgeschlagen und passen im Normalfall. **Übernehmen** schreibt die Werte in den Client Socket und das Gateway und öffnet die Verbindung.
 4. **Verbindung prüfen**. Darunter steht das Ergebnis (Modell, Ladezustand, Betriebsart).
@@ -241,4 +241,4 @@ Alle Schreibfunktionen verlangen das Häkchen „Steuerung erlauben“.
 
 ## Markenhinweis
 
-Anker und SOLIX sind Marken ihres jeweiligen Inhabers. ANKERlocal ist ein privates Projekt und steht in keiner Verbindung zum Hersteller.
+Anker und SOLIX sind Marken ihres jeweiligen Inhabers. AnkerLocal ist ein privates Projekt und steht in keiner Verbindung zum Hersteller.

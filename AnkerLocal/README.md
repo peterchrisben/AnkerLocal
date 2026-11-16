@@ -1,5 +1,5 @@
-# Anker Solix Speicher
+# AnkerLocal Speicher
 
-Gerätemodul der Bibliothek ANKERlocal: Anker-SOLIX-Speicher lokal über Modbus TCP lesen und steuern.
+Gerätemodul der Bibliothek AnkerLocal: Anker-SOLIX-Speicher lokal über Modbus TCP lesen und steuern.
 
 Die vollständige Beschreibung (Einrichtung, Bedienung, Variablen, Funktionen) steht im [README der Bibliothek](../README.md).

@@ -1,12 +1,12 @@
 {
   "id": "{1ED02D93-DC48-4546-8693-9C4B4CB51934}",
-  "name": "AnkerSolix",
+  "name": "AnkerLocal",
   "type": 3,
   "vendor": "Anker",
-  "aliases": ["Anker Solix Speicher"],
+  "aliases": ["AnkerLocal Speicher"],
   "parentRequirements": ["{E310B701-4AE7-458E-B618-EC13A1A6F6A8}"],
   "childRequirements": [],
   "implemented": ["{77B31ABB-18FA-4B91-BB63-E5B2AB5588F4}"],
   "prefix": "ANK",
-  "url": "https://github.com/peterchrisben/ANKERlocal"
+  "url": "https://github.com/peterchrisben/AnkerLocal"
 }

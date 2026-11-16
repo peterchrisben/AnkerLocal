@@ -2,6 +2,11 @@
 
 ## Version 1.0
 
+### Build 3 (16.11.2026)
+
+#### Geändert
+- Umbenannt: Die Bibliothek heißt jetzt **AnkerLocal** (vorher ANKERlocal), das Modul `AnkerLocal` (vorher `AnkerSolix`) und erscheint in der Instanzliste als „AnkerLocal Speicher“ (vorher „Anker Solix Speicher“). So ist es vom Cloud-Modul „Anker Solix“ aus dem Module Store klar zu unterscheiden. Kennungen (GUIDs), Funktionen (`ANK_…`), Variablen und Einstellungen bleiben unverändert. Das Repo liegt jetzt unter github.com/peterchrisben/AnkerLocal.
+
 ### Build 2 (16.11.2026)
 
 #### Neu

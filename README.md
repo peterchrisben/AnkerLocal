@@ -2,7 +2,7 @@
 
 Bindet Anker-SOLIX-Speicher **rein lokal** in Symcon ein – über Modbus TCP (ModBus Gateway von Symcon) im eigenen Netz, ohne Cloud und ohne Anker-Konto. Das Modul liest die Werte des Speichers und kann ihn auf Wunsch steuern: von Hand laden oder entladen, über einen eingebauten Regler auf eine Ziel-Netzleistung führen (Überschussladen / Nulleinspeisung) oder die Leistung von einem eigenen Energiemanager vorgeben lassen.
 
-**Aktuelle Version:** 1.0 Build 3 (16.11.2026) – **noch nicht an einem echten Gerät getestet** (siehe [TODO.md](TODO.md)).
+**Aktuelle Version:** 1.0 Build 4 (22.11.2026) – **noch nicht an einem echten Gerät getestet** (siehe [TODO.md](TODO.md)).
 
 ## Inhalt
 
@@ -223,6 +223,11 @@ Alle Schreibfunktionen verlangen das Häkchen „Steuerung erlauben“.
 - **Nur ein Regler:** Nicht gleichzeitig mit Home Assistant, evcc oder Loxone auf denselben Speicher schreiben.
 - **Abweichungen zur App:** Das Modul liest die Rohwerte des Speichers, die App zeigt Cloud-Werte im 5-Minuten-Takt.
 - **Netzeinspeisung** ist in manchen Ländern ab Werk gesperrt und lässt sich nur in der App freigeben.
+
+## Fehlersuche
+
+- Ganz unten im Instanz-Formular steht die installierte Version, z. B. „AnkerLocal 1.0 (Build 4) vom 22.11.2026“. Stimmt sie nach einem Update nicht, das Formular schließen und neu öffnen bzw. in der Modulverwaltung erneut aktualisieren.
+- Rechtsklick auf die Instanz → **Debug** zeigt jede Anfrage, jede Antwort und jeden Schreibbefehl. Bei Problemen bitte diesen Ausschnitt mitschicken.
 
 ## 11 Technik und Quellen
 

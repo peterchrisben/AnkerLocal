@@ -16,6 +16,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../libs/ANKModbus.php';
 require_once __DIR__ . '/../libs/ANKRegisters.php';
+require_once __DIR__ . '/../libs/ANKVersion.php';
 
 class AnkerLocal extends IPSModule
 {
@@ -446,7 +447,7 @@ class AnkerLocal extends IPSModule
         ];
         $this->FillForm($form['elements'], $fill);
         $this->FillForm($form['actions'], $fill);
-        return json_encode($form);
+        return json_encode(ANKVersion::Append($form));
     }
 
     private function FillForm(array &$items, array $fill): void
@@ -835,7 +836,12 @@ class AnkerLocal extends IPSModule
         ];
     }
 
-    /** Auswahl: mit Aktion Aufzählung, ohne Aktion Klartext über Intervalle. */
+    /**
+     * Auswahl: mit Aktion Aufzählung, ohne Aktion Klartext über Intervalle.
+     * Eine Aufzählungs-Option kennt nur Value, Caption, IconActive, IconValue und Color – weitere
+     * Schlüssel (z. B. die Farbschlüssel der Wertanzeige) lassen Symcon „Übernehmen“ mit
+     * „unbekannte Unterparameter“ abbrechen.
+     */
     private function PresChoice(array $texts, bool $action): array
     {
         if (!$action) {
@@ -846,9 +852,7 @@ class AnkerLocal extends IPSModule
             $options[] = [
                 'Value' => $value, 'Caption' => $text,
                 'IconActive' => false, 'IconValue' => '',
-                'Color' => -1,
-                'ColorActive' => false, 'ColorValue' => -1,
-                'ContentColorActive' => false, 'ContentColorValue' => -1
+                'Color' => -1
             ];
         }
         return [

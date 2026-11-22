@@ -2,6 +2,17 @@
 
 ## Version 1.0
 
+### Build 4 (22.11.2026)
+
+#### Behoben
+- Mit „Steuerung erlauben“ brach „Übernehmen“ ab („Der Eintrag im Parameter OPTIONS enthält unbekannte Unterparameter“), weil die Auswahl-Variablen (Steuerung, Regelung, Anker-Betriebsart) Farbschlüssel der Wertanzeige mitschickten. Eine Aufzählung bekommt jetzt nur noch Value, Caption, IconActive, IconValue und Color.
+
+#### Neu
+- Ganz unten im Formular steht die installierte Version („AnkerLocal 1.0 (Build 4) vom 22.11.2026“), gelesen aus der installierten library.json.
+
+#### Dokumentation
+- README: Hinweis auf die Versionszeile bei der Fehlersuche. Simulation prüft alle Darstellungen auf Schlüssel, die Symcon nicht kennt.
+
 ### Build 3 (16.11.2026)
 
 #### Geändert

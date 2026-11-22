@@ -403,6 +403,51 @@ expectException('Schalten ohne Verbindung', fn() => ANK_SetControl($id, 1));
 FakeAnker::$online = true;
 check('Verbindung wieder da', ANK_Update($id), true);
 
+echo "10 Darstellungen (Schlüssel wie Symcon 9.1 sie annimmt)\n";
+$allowed = [
+    'enum'     => ['Value', 'Caption', 'IconActive', 'IconValue', 'Color'],
+    'options'  => ['Value', 'Caption', 'IconActive', 'IconValue', 'ColorActive', 'ColorValue', 'ContentColorActive', 'ContentColorValue'],
+    'interval' => ['IntervalMinValue', 'IntervalMaxValue', 'ConstantActive', 'ConstantValue', 'ConversionFactor',
+        'PrefixActive', 'PrefixValue', 'SuffixActive', 'SuffixValue', 'DigitsActive', 'DigitsValue',
+        'IconActive', 'IconValue', 'ColorActive', 'ColorValue', 'ContentColorActive', 'ContentColorValue']
+];
+$checked = 0;
+$bad = [];
+foreach ([$id, $x] as $inst) {
+    setProps($inst, ['AllowControl' => true]);
+    foreach ([true, false] as $allow) {
+        setProps($inst, ['AllowControl' => $allow]);
+        foreach (Stub::$objects as $o) {
+            if ($o['type'] !== 'variable' || $o['parent'] !== $inst || !is_array($o['profile'])) {
+                continue;
+            }
+            $p = $o['profile'];
+            $lists = [];
+            if (isset($p['OPTIONS'])) {
+                $lists[] = [$p['PRESENTATION'] === VARIABLE_PRESENTATION_ENUMERATION ? 'enum' : 'options', json_decode($p['OPTIONS'], true)];
+            }
+            if (isset($p['INTERVALS'])) {
+                $lists[] = ['interval', json_decode($p['INTERVALS'], true)];
+            }
+            foreach ($lists as [$kind, $entries]) {
+                foreach ($entries as $entry) {
+                    $checked++;
+                    $extra = array_diff(array_keys($entry), $allowed[$kind]);
+                    $missing = $kind === 'options' ? array_diff(['ColorActive'], array_keys($entry)) : [];
+                    if ($extra || $missing) {
+                        $bad[] = $o['ident'] . ' (' . $kind . '): ' . implode(', ', array_merge($extra, $missing));
+                    }
+                }
+            }
+        }
+    }
+}
+check('Darstellungen geprüft (' . $checked . ' Einträge), keine unbekannten Schlüssel', $bad, []);
+$form = json_decode(Stub::$instances[$id]->GetConfigurationForm(), true);
+$last = end($form['actions']);
+check('Versionszeile als letztes Element', strpos($last['caption'], 'AnkerLocal 1.0 (Build ') === 0, true);
+echo '       ' . $last['caption'] . "\n";
+
 $warn = array_filter(Stub::$log, fn($l) => strpos($l, 'WARNUNG') !== false && strpos($l, 'MessageSink') === false && strpos($l, 'RequestAction') === false && strpos($l, 'ReceiveData') === false);
 foreach ($warn as $w) {
     echo "  $w\n";

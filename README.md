@@ -32,7 +32,17 @@ Die Solarbank- und XE-Speicher haben laut der offiziellen Home-Assistant-Integra
 
 Das Modul erkennt das Gerät bei der ersten Abfrage selbst (X1 am Modellnamen, die anderen an der Seriennummer) und legt nur die Variablen an, die es bei diesem Gerät gibt. Bei Speichern ohne eigene PV-Eingänge (Solarbank Max AC, XE AC) sind „PV-Leistung“ und „PV-Ertrag gesamt“ von vornherein abgewählt. Klappt die Erkennung nicht, lässt sich die Gerätefamilie unter **Einrichtung** fest einstellen.
 
-**Nicht unterstützt:** ältere Solarbank-Generationen (Solarbank 2 / 3 – sie haben kein lokales Modbus), Smart Meter Gen 2 und Smart Plug (eigene Register, noch nicht umgesetzt), V1-Wallbox, mehrere X1 im Verbund.
+> **Wichtig:** AnkerLocal funktioniert nur mit Geräten, die Anker für die **lokale Steuerung per Modbus TCP** freigegeben hat – genau die Geräte in der Tabelle oben. Ob dein Gerät es kann, siehst du in der Anker-App: Gibt es unter Einstellungen → Steuerung durch Drittanbieter (Three-Party Control Settings) den Punkt **Modbus TCP** (bei der X1 in der Anker SOLIX Professional App), geht es. Fehlt der Punkt, kann das Gerät es nicht – daran kann auch ein Symcon-Modul nichts ändern.
+
+**Nicht unterstützt** (kein lokales Modbus vom Hersteller):
+
+- Solarbank E1600 (erste Generation), Solarbank 2 und Solarbank 3 (alle Ausführungen)
+- Power Stations (SOLIX F-, C- und weitere Serien)
+- Anker P1 Meter
+
+Für diese Geräte gibt es im Module Store das Modul **„Anker Solix“**, das über die Anker-Cloud arbeitet.
+
+**Noch nicht umgesetzt:** Smart Meter Gen 2 und Smart Plug (eigene Register), V1-Wallbox, mehrere X1 im Verbund.
 
 ## 2 Voraussetzungen
 
@@ -43,7 +53,7 @@ Das Modul erkennt das Gerät bei der ersten Abfrage selbst (X1 am Modellnamen, d
 - Die X1 nimmt nur **eine** Modbus-Verbindung gleichzeitig an – also nicht zusätzlich Home Assistant, evcc oder Loxone darauf zugreifen lassen.
 - Die IP-Adresse am besten im Router fest vergeben.
 
-Ist der Punkt in der App ausgegraut: Der Speicher ist offline, Teil einer Power Station oder die Firmware ist zu alt.
+Fehlt der Punkt ganz, unterstützt das Gerät kein lokales Modbus (siehe „Nicht unterstützt“ oben). Ist er ausgegraut: Der Speicher ist offline, Teil einer Power Station oder die Firmware ist zu alt – dann in der App die Firmware aktualisieren.
 
 ## 3 Einrichtung
 
